@@ -97,6 +97,13 @@ const Theme = {
     return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border ${c.bg} ${c.text} ${c.border}">${platform}</span>`;
   },
 
+  // Generic label badge using Linear's hex color
+  labelBadge(name, hexColor) {
+    if (!name) return '';
+    const hex = hexColor || '#64748b';
+    return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border" style="color:${hex};background:${hex}15;border-color:${hex}40"><span class="w-1.5 h-1.5 rounded-full" style="background:${hex}"></span>${this.escapeHtml(name)}</span>`;
+  },
+
   // Date formatting
   formatDate(dateStr) {
     if (!dateStr) return '';

@@ -10,11 +10,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <script src="theme.js?v=3"></script>
-  <script src="data.js?v=3"></script>
+  <script src="theme.js?v=4"></script>
+  <script src="data.js?v=4"></script>
   <script>window.CURRENT_PAGE = 'bugs';</script>
-  <script src="nav.js?v=3"></script>
-  <script src="filters.js?v=3"></script>
+  <script src="nav.js?v=4"></script>
+  <script src="filters.js?v=4"></script>
 
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -198,8 +198,7 @@
                 <div class="flex items-center gap-2 mb-1.5 flex-wrap">
                   <span class="font-mono text-xs text-blue-400">${bug.identifier}</span>
                   ${Theme.statusBadge(bug.status)}
-                  ${Theme.severityBadge(bug.severity)}
-                  ${Theme.platformBadge(bug.platform)}
+                  ${(bug.labelObjects || []).map(l => Theme.labelBadge(l.name, l.color)).join('')}
                 </div>
                 <h4 class="text-sm text-slate-200 font-medium leading-snug">${Theme.escapeHtml(bug.title)}</h4>
                 <div class="flex items-center gap-3 mt-2 text-xs text-slate-500">

@@ -179,7 +179,8 @@ const KNOWN_NON_FEATURE_LABELS = [
 ];
 
 function parseBugLabels(issue) {
-  const labels = issue.labels.nodes.map(l => l.name);
+  const labelNodes = issue.labels.nodes;
+  const labels = labelNodes.map(l => l.name);
 
   // Feature area = any label that isn't a known infrastructure label
   const featureLabels = labels.filter(l => !KNOWN_NON_FEATURE_LABELS.includes(l));
@@ -191,6 +192,7 @@ function parseBugLabels(issue) {
     os: labels.find(l => OS_LABELS.includes(l)) || null,
     source: labels.includes('UAT Feedback') ? 'UAT' : null,
     allLabels: labels,
+    labelObjects: labelNodes.map(l => ({ name: l.name, color: l.color })),
   };
 }
 
@@ -211,6 +213,7 @@ function normalizeBug(issue) {
     featureArea: labels.featureArea,
     source: labels.source,
     allLabels: labels.allLabels,
+    labelObjects: labels.labelObjects,
     assigneeId: issue.assignee?.id || null,
     assigneeName: issue.assignee?.displayName || issue.assignee?.name || 'Unassigned',
     assigneeAvatar: issue.assignee?.avatarUrl || null,
@@ -376,7 +379,7 @@ function computeFilteredKPIs(bugs, filters = {}) {
 
 const FETCH_ACTIVE_CYCLE_QUERY = `
   query FetchActiveCycle {
-    cycles(filter: { isActive: { eq: true } }, first: 5, orderBy: createdAt) {
+    cycles(first: 20, orderBy: createdAt) {
       nodes {
         id
         name
@@ -426,8 +429,11 @@ async function fetchActiveCycle() {
   const cycles = data.cycles.nodes;
   if (cycles.length === 0) return null;
 
-  // Pick the first active cycle
-  const cycle = cycles[0];
+  // Find the cycle where now is between startsAt and endsAt
+  const now = new Date();
+  const active = cycles.find(c => new Date(c.startsAt) <= now && new Date(c.endsAt) >= now);
+  const cycle = active || cycles[0]; // fallback to most recent
+
   setCache('active-cycle', cycle);
   return cycle;
 }
