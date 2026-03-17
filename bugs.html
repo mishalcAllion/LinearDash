@@ -10,11 +10,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <script src="theme.js?v=5"></script>
-  <script src="data.js?v=5"></script>
+  <script src="theme.js?v=6"></script>
+  <script src="data.js?v=6"></script>
   <script>window.CURRENT_PAGE = 'bugs';</script>
-  <script src="nav.js?v=5"></script>
-  <script src="filters.js?v=5"></script>
+  <script src="nav.js?v=6"></script>
+  <script src="filters.js?v=6"></script>
 
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -38,11 +38,17 @@
         <p id="bug-count" class="text-sm text-slate-500 mt-1">Loading...</p>
       </div>
 
+      <!-- KPI cards -->
+      <div id="bug-kpis" class="mb-6"></div>
+
+      <!-- Quick filters -->
+      <div id="quick-filters" class="mb-3"></div>
+
       <!-- Active filters -->
-      <div id="active-filters" class="mb-4"></div>
+      <div id="active-filters" class="mb-3"></div>
 
       <!-- Filter bar -->
-      <div id="filter-bar" class="mb-6 bg-slate-900/50 border border-slate-800 rounded-lg p-4"></div>
+      <div id="filter-bar" class="mb-4"></div>
 
       <!-- Sort controls -->
       <div id="sort-controls" class="mb-4 flex items-center gap-3"></div>
@@ -71,7 +77,6 @@
         await refreshData();
         updateNavStats();
         currentFilters = Filters.fromURL();
-        // Apply sort from URL if present (e.g. ?sort=age)
         const urlSort = Filters.sortFromURL();
         if (urlSort) currentSort = urlSort;
         renderAll();
@@ -87,10 +92,15 @@
     function onFilterChange(newFilters) {
       currentFilters = newFilters;
       displayLimit = 50;
-      // Update URL without reload
       const url = Filters.toURL('bugs.html', newFilters);
       history.replaceState(null, '', url);
       renderAll();
+    }
+
+    function applyLabelFilter(key, value) {
+      const updated = { ...currentFilters, [key]: value };
+      onFilterChange(updated);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function renderAll() {
@@ -103,6 +113,12 @@
           ? `Showing ${filtered.length} of ${window.BUGS.length} bugs (${Filters.activeCount(currentFilters)} filter${Filters.activeCount(currentFilters) > 1 ? 's' : ''} active)`
           : `${window.BUGS.length} total bugs`;
 
+      // KPIs
+      renderBugKPIs(filtered);
+
+      // Quick filters
+      renderQuickFilters();
+
       // Filters
       Filters.renderActiveFilters('active-filters', currentFilters, onFilterChange);
       Filters.renderFilterBar('filter-bar', window.BUGS, currentFilters, onFilterChange);
@@ -112,6 +128,73 @@
 
       // Table
       renderBugTable(sorted);
+    }
+
+    // ─── KPI Cards ─────────────────────────────────────────────────
+
+    function renderBugKPIs(filtered) {
+      const k = computeKPIs(filtered);
+      const isFiltered = Filters.hasActive(currentFilters);
+
+      function kpiCard(label, value, color, borderColor) {
+        return `
+          <div class="bg-slate-900 border ${borderColor} rounded-lg p-4">
+            <div class="text-2xl font-semibold font-mono ${color}">${value}</div>
+            <div class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">${label}</div>
+            ${isFiltered ? '<div class="text-[10px] text-slate-600 mt-0.5">filtered</div>' : ''}
+          </div>
+        `;
+      }
+
+      const addedColor = k.addedRecent === 0 ? 'text-green-400' : k.addedRecent > 3 ? 'text-red-400' : 'text-amber-400';
+      const addedBorder = k.addedRecent === 0 ? 'border-green-500/20' : k.addedRecent > 3 ? 'border-red-500/20' : 'border-amber-500/20';
+
+      document.getElementById('bug-kpis').innerHTML = `
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          ${kpiCard('Open', k.totalOpen, 'text-blue-400', 'border-blue-500/20')}
+          ${kpiCard('Total', k.total, 'text-slate-200', 'border-slate-700')}
+          ${kpiCard('Added (24h)', k.addedRecent, addedColor, addedBorder)}
+          ${kpiCard('Avg Age (days)', k.avgAgeDays, 'text-slate-200', 'border-slate-700')}
+        </div>
+      `;
+    }
+
+    // ─── Quick Filters ─────────────────────────────────────────────
+
+    function renderQuickFilters() {
+      const presets = [
+        { label: 'Open Only', key: 'openOnly', value: '1' },
+        { label: 'S0-Critical', key: 'severity', value: 'S0-Critical' },
+        { label: 'S1-Major', key: 'severity', value: 'S1-Major' },
+        { label: 'Mobile App', key: 'platform', value: 'Mobile App' },
+        { label: 'Command Center', key: 'platform', value: 'Command Center' },
+        { label: 'New Issues', key: 'status', value: 'New Issue' },
+      ];
+
+      const pills = presets.map((p, i) => {
+        const isActive = currentFilters[p.key] === p.value;
+        const cls = isActive
+          ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+          : 'bg-slate-800/50 text-slate-500 border-slate-700/50 hover:text-slate-300 hover:border-slate-600';
+        return `<button onclick="toggleQuickFilter(${i})" class="px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${cls}">${p.label}</button>`;
+      }).join('');
+
+      document.getElementById('quick-filters').innerHTML = `
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-[10px] text-slate-600 uppercase tracking-wider mr-1">Quick:</span>
+          ${pills}
+        </div>
+      `;
+
+      // Store presets globally for onclick
+      window._quickPresets = presets;
+    }
+
+    function toggleQuickFilter(idx) {
+      const p = window._quickPresets[idx];
+      const isActive = currentFilters[p.key] === p.value;
+      const updated = { ...currentFilters, [p.key]: isActive ? null : p.value };
+      onFilterChange(updated);
     }
 
     // ─── Sorting ────────────────────────────────────────────────────
@@ -190,7 +273,16 @@
       }
 
       const rows = visible.map(bug => {
-        const sc = Theme.statusColor(bug.status);
+        // Build clickable label tags
+        const labelTags = (bug.labelObjects || []).map(l => {
+          const mapping = Filters.labelToFilterKey(l.name);
+          if (mapping) {
+            const onclick = `event.stopPropagation(); applyLabelFilter('${mapping.key}', '${l.name.replace(/'/g, "\\'")}')`;
+            return Theme.clickableLabelBadge(l.name, l.color, onclick);
+          }
+          return Theme.labelBadge(l.name, l.color);
+        }).join('');
+
         return `
           <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 hover:border-slate-700 transition-colors group">
             <div class="flex items-start justify-between gap-3">
@@ -198,7 +290,7 @@
                 <div class="flex items-center gap-2 mb-1.5 flex-wrap">
                   <span class="font-mono text-xs text-blue-400">${bug.identifier}</span>
                   ${Theme.statusBadge(bug.status)}
-                  ${(bug.labelObjects || []).map(l => Theme.labelBadge(l.name, l.color)).join('')}
+                  ${labelTags}
                 </div>
                 <h4 class="text-sm text-slate-200 font-medium leading-snug">${Theme.escapeHtml(bug.title)}</h4>
                 <div class="flex items-center gap-3 mt-2 text-xs text-slate-500">

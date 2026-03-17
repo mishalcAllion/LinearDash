@@ -10,11 +10,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <script src="theme.js?v=5"></script>
-  <script src="data.js?v=5"></script>
+  <script src="theme.js?v=6"></script>
+  <script src="data.js?v=6"></script>
   <script>window.CURRENT_PAGE = 'sprint';</script>
-  <script src="nav.js?v=5"></script>
-  <script src="charts.js?v=5"></script>
+  <script src="nav.js?v=6"></script>
+  <script src="charts.js?v=6"></script>
 
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -50,6 +50,7 @@
   <script>
     let isLoading = false;
     let currentView = new URLSearchParams(window.location.search).get('view') || 'kanban';
+    let kanbanGroupBy = new URLSearchParams(window.location.search).get('group') || 'status';
     let cycleData = null;
     let sprintIssues = [];
     let sprintKPIs = null;
@@ -112,6 +113,15 @@
       currentView = view;
       const url = new URL(window.location);
       url.searchParams.set('view', view);
+      if (view !== 'kanban') url.searchParams.delete('group');
+      history.replaceState(null, '', url);
+      renderContent();
+    }
+
+    function switchGroupBy(group) {
+      kanbanGroupBy = group;
+      const url = new URL(window.location);
+      url.searchParams.set('group', group);
       history.replaceState(null, '', url);
       renderContent();
     }
@@ -143,6 +153,22 @@
                 List
               </button>
             </div>
+            ${currentView === 'kanban' ? `
+            <!-- Group by toggle (kanban only) -->
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-slate-600 uppercase tracking-wider">Group:</span>
+              <div class="flex items-center bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                <button onclick="switchGroupBy('status')"
+                        class="px-2.5 py-1 text-[11px] font-medium transition-colors ${kanbanGroupBy === 'status' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200'}">
+                  Status
+                </button>
+                <button onclick="switchGroupBy('assignee')"
+                        class="px-2.5 py-1 text-[11px] font-medium transition-colors ${kanbanGroupBy === 'assignee' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200'}">
+                  Assignee
+                </button>
+              </div>
+            </div>
+            ` : ''}
             <button onclick="handleRefresh()" ${loading ? 'disabled' : ''}
                     class="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors disabled:opacity-50 flex items-center gap-2">
               <svg class="w-4 h-4 ${loading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -252,7 +278,8 @@
 
     function renderContent() {
       if (currentView === 'kanban') {
-        renderKanban();
+        if (kanbanGroupBy === 'assignee') renderKanbanByAssignee();
+        else renderKanban();
       } else {
         renderList();
       }
@@ -343,6 +370,87 @@
                 : `<span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px] text-slate-400">${issue.assigneeName.charAt(0)}</span>`}
               <span class="text-[10px] text-slate-500">${Theme.escapeHtml(issue.assigneeName)}</span>
             </div>
+            <div class="flex items-center gap-1">${labelBadges}</div>
+          </div>
+          ${isBlocked ? `<div class="mt-2 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full ${sc.dot}"></span><span class="text-[10px] ${sc.text}">${issue.status}</span></div>` : ''}
+        </a>
+      `;
+    }
+
+    // ─── Kanban by Assignee ──────────────────────────────────────────
+
+    function renderKanbanByAssignee() {
+      const byAssignee = groupBy(sprintIssues, 'assigneeName');
+      const sortedNames = Object.keys(byAssignee).sort((a, b) => {
+        if (a === 'Unassigned') return 1;
+        if (b === 'Unassigned') return -1;
+        return a.localeCompare(b);
+      });
+
+      const typePri = { started: 0, unstarted: 1, backlog: 2, completed: 3, canceled: 4 };
+
+      const columns = sortedNames.map(name => {
+        const issues = byAssignee[name].sort((a, b) => {
+          const diff = (typePri[a.statusType] ?? 5) - (typePri[b.statusType] ?? 5);
+          if (diff !== 0) return diff;
+          return new Date(b.updatedAt) - new Date(a.updatedAt);
+        });
+
+        const totalPts = issues.reduce((s, i) => s + i.estimate, 0);
+        const doneCount = issues.filter(i => ['Released', 'Done'].includes(i.status) || i.statusType === 'completed').length;
+        const firstIssue = issues[0];
+        const avatar = firstIssue?.assigneeAvatar
+          ? `<img src="${firstIssue.assigneeAvatar}" class="w-5 h-5 rounded-full" alt="${Theme.escapeHtml(name)}">`
+          : `<span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px] text-slate-400 font-medium">${name.charAt(0).toUpperCase()}</span>`;
+
+        const cards = issues.map(issue => renderAssigneeKanbanCard(issue)).join('');
+
+        return `
+          <div class="flex-shrink-0 w-[280px]">
+            <div class="flex items-center gap-2 mb-3 px-1">
+              ${avatar}
+              <div class="flex-1 min-w-0">
+                <span class="text-xs font-semibold text-slate-300 truncate block">${Theme.escapeHtml(name)}</span>
+                <span class="text-[10px] text-slate-500">${issues.length} issues${totalPts ? ` / ${totalPts}pts` : ''}${doneCount ? ` / ${doneCount} done` : ''}</span>
+              </div>
+              <span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded">${issues.length}</span>
+            </div>
+            <div class="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+              ${cards}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('sprint-content').innerHTML = `
+        <div class="flex gap-4 overflow-x-auto pb-4">${columns}</div>
+      `;
+    }
+
+    function renderAssigneeKanbanCard(issue) {
+      const sc = Theme.statusColor(issue.status);
+      const isBlocked = BLOCKED_STATUSES.includes(issue.status);
+      const blockedBorder = isBlocked ? 'border-l-2 border-l-red-500' : '';
+
+      const labelBadges = issue.allLabels
+        .filter(l => !['Bug', 'Feature', 'feature-request', 'HotFix', 'Improvement', 'New Issue'].includes(l))
+        .slice(0, 2)
+        .map(l => `<span class="px-1.5 py-0.5 text-[10px] bg-slate-700/50 text-slate-400 rounded">${Theme.escapeHtml(l)}</span>`)
+        .join('');
+
+      return `
+        <a href="${issue.url}" target="_blank" rel="noopener"
+           class="block bg-slate-900 border border-slate-800 ${blockedBorder} rounded-lg p-3 hover:border-slate-600 transition-colors group">
+          <div class="flex items-start justify-between gap-2 mb-1.5">
+            <span class="font-mono text-[11px] text-blue-400">${issue.identifier}</span>
+            <div class="flex items-center gap-1.5">
+              ${issue.isBug ? '<span class="text-[10px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">Bug</span>' : ''}
+              ${issue.estimate ? `<span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">${issue.estimate}pt</span>` : ''}
+            </div>
+          </div>
+          <h5 class="text-xs text-slate-200 font-medium leading-relaxed mb-2">${Theme.escapeHtml(Theme.truncate(issue.title, 80))}</h5>
+          <div class="flex items-center justify-between">
+            ${Theme.statusBadge(issue.status)}
             <div class="flex items-center gap-1">${labelBadges}</div>
           </div>
           ${isBlocked ? `<div class="mt-2 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full ${sc.dot}"></span><span class="text-[10px] ${sc.text}">${issue.status}</span></div>` : ''}

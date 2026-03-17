@@ -104,6 +104,13 @@ const Theme = {
     return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border" style="color:${hex};background:${hex}15;border-color:${hex}40"><span class="w-1.5 h-1.5 rounded-full" style="background:${hex}"></span>${this.escapeHtml(name)}</span>`;
   },
 
+  // Clickable label badge (for bug list filtering)
+  clickableLabelBadge(name, hexColor, onclick) {
+    if (!name) return '';
+    const hex = hexColor || '#64748b';
+    return `<button onclick="${onclick}" title="Filter by ${this.escapeHtml(name)}" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border cursor-pointer hover:brightness-125 transition-all" style="color:${hex};background:${hex}15;border-color:${hex}40"><span class="w-1.5 h-1.5 rounded-full" style="background:${hex}"></span>${this.escapeHtml(name)}</button>`;
+  },
+
   // Date formatting
   formatDate(dateStr) {
     if (!dateStr) return '';
