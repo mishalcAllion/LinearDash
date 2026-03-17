@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard -- Bug Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="theme.js"></script>
+  <script src="data.js"></script>
+  <script>window.CURRENT_PAGE = 'dashboard';</script>
+  <script src="nav.js"></script>
+  <script src="charts.js"></script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
+    .skeleton { background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%); background-size: 200px 100%; animation: shimmer 1.5s infinite; border-radius: 0.5rem; }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-300 font-sans min-h-screen antialiased">
+  <div id="nav-root"></div>
+
+  <main class="ml-0 lg:ml-[260px] min-h-screen">
+    <div class="max-w-[1280px] mx-auto px-6 py-8 pt-14 lg:pt-8">
+
+      <!-- Page header -->
+      <div id="page-header" class="mb-8"></div>
+
+      <!-- Top KPI cards -->
+      <div id="top-kpis" class="mb-8"></div>
+
+      <!-- Status breakdown -->
+      <div id="status-section" class="mb-8"></div>
+
+      <!-- Two-column: Severity + Platform -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+        <div id="severity-section"></div>
+        <div id="platform-section"></div>
+      </div>
+
+      <!-- Feature area breakdown -->
+      <div id="feature-section" class="mb-8"></div>
+
+      <!-- Assignee summary -->
+      <div id="assignee-section" class="mb-8"></div>
+
+    </div>
+  </main>
+
+  <script>
+    let isLoading = false;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!hasApiKey()) {
+        window.location.href = 'settings.html';
+        return;
+      }
+
+      renderHeader(true);
+      renderLoadingState();
+
+      try {
+        await refreshData();
+        updateNavStats();
+        renderHeader(false);
+        renderTopKPIs();
+        renderStatusBreakdown();
+        renderSeverityBreakdown();
+        renderPlatformBreakdown();
+        renderFeatureAreaBreakdown();
+        renderAssigneeSummary();
+      } catch (e) {
+        renderError(e.message);
+      }
+    });
+
+    async function handleRefresh() {
+      if (isLoading) return;
+      isLoading = true;
+      renderHeader(true);
+      renderLoadingState();
+
+      try {
+        await refreshData(true);
+        updateNavStats();
+        renderHeader(false);
+        renderTopKPIs();
+        renderStatusBreakdown();
+        renderSeverityBreakdown();
+        renderPlatformBreakdown();
+        renderFeatureAreaBreakdown();
+        renderAssigneeSummary();
+      } catch (e) {
+        renderError(e.message);
+      } finally {
+        isLoading = false;
+      }
+    }
+
+    // ─── Header ─────────────────────────────────────────────────────
+
+    function renderHeader(loading) {
+      const lastRefresh = getLastRefreshTime();
+      document.getElementById('page-header').innerHTML = `
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 class="text-xl font-semibold text-slate-100">Bug Dashboard</h2>
+            <p class="text-sm text-slate-500 mt-1">
+              ${lastRefresh ? `Last refreshed ${Theme.relativeTime(new Date(lastRefresh).toISOString())}` : 'Loading...'}
+              ${window.BUGS ? ` -- ${window.BUGS.length} total bugs` : ''}
+            </p>
+          </div>
+          <button onclick="handleRefresh()" ${loading ? 'disabled' : ''}
+                  class="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors disabled:opacity-50 flex items-center gap-2">
+            <svg class="w-4 h-4 ${loading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            ${loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+      `;
+    }
+
+    // ─── Loading skeleton ───────────────────────────────────────────
+
+    function renderLoadingState() {
+      document.getElementById('top-kpis').innerHTML = `
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          ${Array(4).fill('<div class="skeleton h-24"></div>').join('')}
+        </div>
+      `;
+      document.getElementById('status-section').innerHTML = `<div class="skeleton h-48"></div>`;
+      document.getElementById('severity-section').innerHTML = `<div class="skeleton h-64"></div>`;
+      document.getElementById('platform-section').innerHTML = `<div class="skeleton h-64"></div>`;
+      document.getElementById('feature-section').innerHTML = `<div class="skeleton h-40"></div>`;
+      document.getElementById('assignee-section').innerHTML = `<div class="skeleton h-48"></div>`;
+    }
+
+    // ─── Error ──────────────────────────────────────────────────────
+
+    function renderError(msg) {
+      document.getElementById('top-kpis').innerHTML = `
+        <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
+          <p class="text-red-400 text-sm font-medium mb-2">Failed to load bug data</p>
+          <p class="text-red-400/70 text-xs font-mono">${Theme.escapeHtml(msg)}</p>
+          <button onclick="handleRefresh()" class="mt-3 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 hover:bg-red-500/20 transition-colors">Retry</button>
+        </div>
+      `;
+      ['status-section', 'severity-section', 'platform-section', 'feature-section', 'assignee-section'].forEach(id => {
+        document.getElementById(id).innerHTML = '';
+      });
+    }
+
+    // ─── Top KPI Cards ──────────────────────────────────────────────
+
+    function renderTopKPIs() {
+      const k = window.KPIS;
+
+      function kpiCard(label, value, color, borderColor, href) {
+        const clickAttr = href ? `onclick="window.location.href='${href}'"` : '';
+        const cursor = href ? 'cursor-pointer hover:border-slate-600' : '';
+        return `
+          <div ${clickAttr} class="bg-slate-900 border ${borderColor} rounded-lg p-5 transition-colors ${cursor}">
+            <div class="text-3xl font-semibold font-mono ${color}">${value}</div>
+            <div class="text-xs text-slate-500 mt-1.5 uppercase tracking-wider">${label}</div>
+          </div>
+        `;
+      }
+
+      const addedColor = k.addedToday === 0 ? 'text-green-400' : k.addedToday > 5 ? 'text-red-400' : 'text-amber-400';
+      const addedBorder = k.addedToday === 0 ? 'border-green-500/20' : k.addedToday > 5 ? 'border-red-500/20' : 'border-amber-500/20';
+
+      document.getElementById('top-kpis').innerHTML = `
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          ${kpiCard('Open Bugs', k.totalOpen, 'text-blue-400', 'border-blue-500/20', 'bugs.html')}
+          ${kpiCard('Added Today', k.addedToday, addedColor, addedBorder, null)}
+          ${kpiCard('Avg Age (days)', k.avgAgeDays, 'text-slate-200', 'border-slate-700', null)}
+          ${kpiCard('Closed This Week', k.closedThisWeek, 'text-green-400', 'border-green-500/20', null)}
+        </div>
+      `;
+    }
+
+    // ─── Status Breakdown ───────────────────────────────────────────
+
+    function renderStatusBreakdown() {
+      const k = window.KPIS;
+      const statusOrder = ['Triage', 'Backlog', 'Ready for Development', 'Dev In Progress', 'Dev Complete', 'Ready for QA', 'QA Completed', 'Ready for UAT', 'On Hold', 'Released'];
+
+      const statuses = statusOrder
+        .map(s => ({ name: s, count: (k.byStatus[s] || []).length }))
+        .filter(s => s.count > 0);
+
+      const segments = statuses.map(s => ({
+        label: s.name,
+        value: s.count,
+        color: Theme.statusColor(s.name).hex,
+      }));
+
+      const cards = statuses.map(s => {
+        const sc = Theme.statusColor(s.name);
+        const pct = k.total > 0 ? ((s.count / k.total) * 100).toFixed(0) : 0;
+        return `
+          <a href="bugs.html?status=${encodeURIComponent(s.name)}"
+             class="bg-slate-900 border ${sc.border} rounded-lg p-3 hover:border-slate-600 transition-colors block">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-2 h-2 rounded-full ${sc.dot}"></span>
+              <span class="text-xs text-slate-400">${s.name}</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-lg font-semibold font-mono ${sc.text}">${s.count}</span>
+              <span class="text-xs text-slate-600 font-mono">${pct}%</span>
+            </div>
+          </a>
+        `;
+      }).join('');
+
+      document.getElementById('status-section').innerHTML = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <h3 class="text-sm font-semibold text-slate-200 mb-4">Status Breakdown</h3>
+          <div id="status-stacked-bar" class="mb-4"></div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">${cards}</div>
+        </div>
+      `;
+
+      Charts.stackedBar('status-stacked-bar', segments, { height: 4 });
+    }
+
+    // ─── Severity Breakdown ─────────────────────────────────────────
+
+    function renderSeverityBreakdown() {
+      const k = window.KPIS;
+      const severities = SEVERITY_LABELS.map(s => ({
+        label: s,
+        value: (k.openBySeverity[s] || []).length,
+        color: Theme.severityColor(s).hex,
+        onClick: `window.location.href='bugs.html?severity=${encodeURIComponent(s)}'`,
+      }));
+
+      // Add "No Severity" if present
+      const noSev = (k.openBySeverity['null'] || k.openBySeverity['Unknown'] || []).length;
+      if (noSev > 0) {
+        severities.push({ label: 'No Severity', value: noSev, color: '#64748b' });
+      }
+
+      document.getElementById('severity-section').innerHTML = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <h3 class="text-sm font-semibold text-slate-200 mb-4">Severity (Open Bugs)</h3>
+          <div id="severity-donut"></div>
+        </div>
+      `;
+
+      Charts.donut('severity-donut', severities, { size: 180, centerLabel: 'Open' });
+    }
+
+    // ─── Platform Breakdown ─────────────────────────────────────────
+
+    function renderPlatformBreakdown() {
+      const k = window.KPIS;
+
+      const platforms = PLATFORM_LABELS.map(p => {
+        const pc = Theme.platformColor(p);
+        const count = (k.openByPlatform[p] || []).length;
+        return `
+          <a href="bugs.html?platform=${encodeURIComponent(p)}"
+             class="bg-slate-900 border ${pc.border} rounded-lg p-4 hover:border-slate-600 transition-colors block flex-1">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2.5 h-2.5 rounded-full ${pc.dot}"></span>
+              <span class="text-xs text-slate-400">${p}</span>
+            </div>
+            <div class="text-2xl font-semibold font-mono ${pc.text}">${count}</div>
+            <div class="text-xs text-slate-600 mt-1">open bugs</div>
+          </a>
+        `;
+      });
+
+      const unknown = (k.openByPlatform['Unknown'] || []).length;
+      if (unknown > 0) {
+        platforms.push(`
+          <a href="bugs.html" class="bg-slate-900 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors block flex-1">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+              <span class="text-xs text-slate-400">Unlabeled</span>
+            </div>
+            <div class="text-2xl font-semibold font-mono text-slate-400">${unknown}</div>
+            <div class="text-xs text-slate-600 mt-1">open bugs</div>
+          </a>
+        `);
+      }
+
+      document.getElementById('platform-section').innerHTML = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <h3 class="text-sm font-semibold text-slate-200 mb-4">Platform (Open Bugs)</h3>
+          <div class="flex gap-3">${platforms.join('')}</div>
+        </div>
+      `;
+    }
+
+    // ─── Feature Area Breakdown ─────────────────────────────────────
+
+    function renderFeatureAreaBreakdown() {
+      const k = window.KPIS;
+      const areas = Object.entries(k.openByFeatureArea)
+        .map(([name, bugs]) => ({ name, count: bugs.length }))
+        .sort((a, b) => b.count - a.count);
+
+      const featureColors = {
+        'Messaging': '#3b82f6', 'Trips': '#22c55e', 'Profile': '#a855f7', 'Flights': '#06b6d4',
+        'Points': '#f59e0b', 'Performance': '#ef4444', 'Integration': '#ec4899', 'Validation': '#14b8a6',
+        'Uncategorized': '#64748b',
+      };
+
+      const cards = areas.map(a => {
+        const color = featureColors[a.name] || '#64748b';
+        return `
+          <a href="bugs.html?feature=${encodeURIComponent(a.name)}"
+             class="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:border-slate-600 transition-colors block">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
+              <span class="text-xs text-slate-400">${a.name}</span>
+            </div>
+            <div class="text-lg font-semibold font-mono text-slate-200">${a.count}</div>
+          </a>
+        `;
+      }).join('');
+
+      document.getElementById('feature-section').innerHTML = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <h3 class="text-sm font-semibold text-slate-200 mb-4">Feature Area (Open Bugs)</h3>
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">${cards}</div>
+        </div>
+      `;
+    }
+
+    // ─── Assignee Summary ───────────────────────────────────────────
+
+    function renderAssigneeSummary() {
+      const k = window.KPIS;
+      const assignees = Object.entries(k.openByAssignee)
+        .map(([name, bugs]) => ({ name, count: bugs.length }))
+        .sort((a, b) => b.count - a.count);
+
+      const items = assignees.map(a => ({
+        label: a.name,
+        value: a.count,
+        color: a.name === 'Unassigned' ? '#64748b' : '#3b82f6',
+        href: `bugs.html?assignee=${encodeURIComponent(a.name)}`,
+      }));
+
+      document.getElementById('assignee-section').innerHTML = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <h3 class="text-sm font-semibold text-slate-200 mb-4">Assignee (Open Bugs)</h3>
+          <div id="assignee-chart"></div>
+        </div>
+      `;
+
+      Charts.hbar('assignee-chart', items);
+    }
+  </script>
+</body>
+</html>

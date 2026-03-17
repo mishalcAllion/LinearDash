@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trends -- Bug Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="theme.js"></script>
+  <script src="data.js"></script>
+  <script>window.CURRENT_PAGE = 'trends';</script>
+  <script src="nav.js"></script>
+  <script src="charts.js"></script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-300 font-sans min-h-screen antialiased">
+  <div id="nav-root"></div>
+
+  <main class="ml-0 lg:ml-[260px] min-h-screen">
+    <div class="max-w-[1280px] mx-auto px-6 py-8 pt-14 lg:pt-8">
+
+      <!-- Page header -->
+      <div class="mb-6">
+        <h2 class="text-xl font-semibold text-slate-100">Trends</h2>
+        <p class="text-sm text-slate-500 mt-1">Bug trends over time (snapshots recorded on each visit)</p>
+      </div>
+
+      <!-- Time range selector -->
+      <div id="range-selector" class="mb-6 flex items-center gap-2"></div>
+
+      <!-- Open bugs trend -->
+      <div id="open-trend" class="mb-6"></div>
+
+      <!-- Severity trend -->
+      <div id="severity-trend" class="mb-6"></div>
+
+      <!-- Data info -->
+      <div id="data-info" class="mb-6"></div>
+
+    </div>
+  </main>
+
+  <script>
+    let selectedRange = 30;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!hasApiKey()) {
+        window.location.href = 'settings.html';
+        return;
+      }
+
+      // Refresh data to ensure today's snapshot exists
+      try {
+        await refreshData();
+        updateNavStats();
+      } catch (e) {
+        // Non-fatal -- we can still show trends from localStorage
+      }
+
+      renderRangeSelector();
+      renderAll();
+    });
+
+    function renderRangeSelector() {
+      const ranges = [7, 14, 30, 90];
+      const buttons = ranges.map(r => `
+        <button onclick="selectRange(${r})"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                       ${selectedRange === r ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200'}">
+          ${r}d
+        </button>
+      `).join('');
+      document.getElementById('range-selector').innerHTML = buttons;
+    }
+
+    function selectRange(days) {
+      selectedRange = days;
+      renderRangeSelector();
+      renderAll();
+    }
+
+    function renderAll() {
+      const allTrends = getTrendData();
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - selectedRange);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+      const trends = allTrends.filter(t => t.date >= cutoffStr);
+
+      if (trends.length < 2) {
+        renderNoData();
+        return;
+      }
+
+      renderOpenTrend(trends);
+      renderSeverityTrend(trends);
+      renderDataInfo(allTrends);
+    }
+
+    function renderNoData() {
+      const msg = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-12 text-center">
+          <p class="text-slate-400 text-sm mb-2">Not enough trend data yet</p>
+          <p class="text-slate-600 text-xs">A snapshot is saved each time you visit the dashboard. Come back tomorrow to see your first trend.</p>
+          <p class="text-slate-600 text-xs mt-1">Data points collected: ${getTrendData().length}</p>
+        </div>
+      `;
+      document.getElementById('open-trend').innerHTML = msg;
+      document.getElementById('severity-trend').innerHTML = '';
+      document.getElementById('data-info').innerHTML = '';
+    }
+
+    function renderOpenTrend(trends) {
+      const items = trends.map(t => ({
+        label: t.date.slice(5), // "03-17"
+        value: t.totalOpen,
+        color: '#3b82f6',
+      }));
+
+      const first = trends[0].totalOpen;
+      const last = trends[trends.length - 1].totalOpen;
+      const delta = last - first;
+      const deltaColor = delta <= 0 ? 'text-green-400' : 'text-red-400';
+      const deltaSign = delta > 0 ? '+' : '';
+
+      document.getElementById('open-trend').innerHTML = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-slate-200">Open Bugs Over Time</h3>
+            <div class="flex items-center gap-3 text-xs">
+              <span class="text-slate-500">Current: <span class="font-mono text-slate-300">${last}</span></span>
+              <span class="${deltaColor} font-mono">${deltaSign}${delta} over period</span>
+            </div>
+          </div>
+          <div id="open-trend-chart"></div>
+        </div>
+      `;
+
+      Charts.vbar('open-trend-chart', items, { height: 160 });
+    }
+
+    function renderSeverityTrend(trends) {
+      const latest = trends[trends.length - 1];
+
+      // Stacked severity over time
+      const tableRows = trends.map(t => {
+        const s = t.bySeverity || {};
+        const total = (s['S0-Critical'] || 0) + (s['S1-Critical'] || 0) + (s['S2-Moderate'] || 0) + (s['S3-Minor'] || 0);
+        return `
+          <tr class="border-b border-slate-800/50">
+            <td class="py-2 pr-4 text-xs font-mono text-slate-500">${t.date}</td>
+            <td class="py-2 pr-4 text-xs font-mono text-red-400 text-right">${s['S0-Critical'] || 0}</td>
+            <td class="py-2 pr-4 text-xs font-mono text-orange-400 text-right">${s['S1-Critical'] || 0}</td>
+            <td class="py-2 pr-4 text-xs font-mono text-amber-400 text-right">${s['S2-Moderate'] || 0}</td>
+            <td class="py-2 pr-4 text-xs font-mono text-green-400 text-right">${s['S3-Minor'] || 0}</td>
+            <td class="py-2 text-xs font-mono text-slate-300 text-right">${total}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('severity-trend').innerHTML = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <h3 class="text-sm font-semibold text-slate-200 mb-4">Severity Breakdown Over Time</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-slate-700">
+                  <th class="text-left py-2 pr-4 text-[10px] text-slate-600 uppercase tracking-wider">Date</th>
+                  <th class="text-right py-2 pr-4 text-[10px] text-red-400/60 uppercase tracking-wider">S0</th>
+                  <th class="text-right py-2 pr-4 text-[10px] text-orange-400/60 uppercase tracking-wider">S1</th>
+                  <th class="text-right py-2 pr-4 text-[10px] text-amber-400/60 uppercase tracking-wider">S2</th>
+                  <th class="text-right py-2 pr-4 text-[10px] text-green-400/60 uppercase tracking-wider">S3</th>
+                  <th class="text-right py-2 text-[10px] text-slate-500 uppercase tracking-wider">Total</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderDataInfo(allTrends) {
+      const first = allTrends.length > 0 ? allTrends[0].date : '--';
+      const last = allTrends.length > 0 ? allTrends[allTrends.length - 1].date : '--';
+      document.getElementById('data-info').innerHTML = `
+        <div class="text-xs text-slate-600">
+          ${allTrends.length} data point${allTrends.length !== 1 ? 's' : ''} collected from ${first} to ${last}.
+          Snapshots are recorded automatically each time you visit the dashboard.
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
