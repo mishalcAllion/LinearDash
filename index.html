@@ -60,11 +60,6 @@
     let isLoading = false;
 
     document.addEventListener('DOMContentLoaded', async () => {
-      if (!hasApiKey()) {
-        window.location.href = 'settings.html';
-        return;
-      }
-
       renderHeader(true);
       renderLoadingState();
 
@@ -199,7 +194,14 @@
 
     function renderStatusBreakdown() {
       const k = window.KPIS;
-      const statusOrder = ['New Issue', 'Triage', 'Backlog', 'Ready for Development', 'Dev In Progress', 'Dev Complete', 'Ready for QA', 'QA Completed', 'Ready for UAT', 'On Hold', 'Released'];
+      const statusOrder = [
+        'New Issue', 'Triage', 'Backlog', 'Grooming', 'Ready for Design', 'Ready for Development',
+        'In Development', 'Code Review', 'PR Review', 'Development Complete',
+        'Ready for QA', 'QA In Progress', 'Ready for UAT', 'UAT In Progress',
+        'Ready for Production', 'Reopen',
+        'On Hold', 'Blocked', 'Cannot Reproduce',
+        'Released', 'Done', 'Duplicate', 'Canceled',
+      ];
 
       const statuses = statusOrder
         .map(s => ({ name: s, count: (k.byStatus[s] || []).length }))
@@ -318,11 +320,17 @@
         .map(([name, bugs]) => ({ name, count: bugs.length }))
         .sort((a, b) => b.count - a.count);
 
-      const featureColors = {
-        'Messaging': '#3b82f6', 'Trips': '#22c55e', 'Profile': '#a855f7', 'Flights': '#06b6d4',
-        'Points': '#f59e0b', 'Performance': '#ef4444', 'Integration': '#ec4899', 'Validation': '#14b8a6',
+      // Dynamic feature area colors -- known labels get assigned colors, rest get auto-assigned
+      const FEATURE_COLOR_MAP = {
+        'Flight Search': '#06b6d4',
         'Uncategorized': '#64748b',
       };
+      const AUTO_COLORS = ['#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1', '#84cc16'];
+      let autoIdx = 0;
+      const featureColors = {};
+      areas.forEach(a => {
+        featureColors[a.name] = FEATURE_COLOR_MAP[a.name] || AUTO_COLORS[autoIdx++ % AUTO_COLORS.length];
+      });
 
       const cards = areas.map(a => {
         const color = featureColors[a.name] || '#64748b';

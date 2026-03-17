@@ -55,11 +55,6 @@
     let selectedRange = 30;
 
     document.addEventListener('DOMContentLoaded', async () => {
-      if (!hasApiKey()) {
-        window.location.href = 'settings.html';
-        return;
-      }
-
       // Refresh data to ensure today's snapshot exists
       try {
         await refreshData();
@@ -156,12 +151,12 @@
       // Stacked severity over time
       const tableRows = trends.map(t => {
         const s = t.bySeverity || {};
-        const total = (s['S0-Critical'] || 0) + (s['S1-Critical'] || 0) + (s['S2-Moderate'] || 0) + (s['S3-Minor'] || 0);
+        const total = (s['S0-Critical'] || 0) + (s['S1-Major'] || 0) + (s['S2-Moderate'] || 0) + (s['S3-Minor'] || 0);
         return `
           <tr class="border-b border-slate-800/50">
             <td class="py-2 pr-4 text-xs font-mono text-slate-500">${t.date}</td>
             <td class="py-2 pr-4 text-xs font-mono text-red-400 text-right">${s['S0-Critical'] || 0}</td>
-            <td class="py-2 pr-4 text-xs font-mono text-orange-400 text-right">${s['S1-Critical'] || 0}</td>
+            <td class="py-2 pr-4 text-xs font-mono text-orange-400 text-right">${s['S1-Major'] || 0}</td>
             <td class="py-2 pr-4 text-xs font-mono text-amber-400 text-right">${s['S2-Moderate'] || 0}</td>
             <td class="py-2 pr-4 text-xs font-mono text-green-400 text-right">${s['S3-Minor'] || 0}</td>
             <td class="py-2 text-xs font-mono text-slate-300 text-right">${total}</td>

@@ -62,11 +62,6 @@
     let displayLimit = 50;
 
     document.addEventListener('DOMContentLoaded', async () => {
-      if (!hasApiKey()) {
-        window.location.href = 'settings.html';
-        return;
-      }
-
       try {
         await refreshData();
         updateNavStats();

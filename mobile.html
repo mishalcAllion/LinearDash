@@ -62,11 +62,6 @@
     let mobileKPIs = null;
 
     document.addEventListener('DOMContentLoaded', async () => {
-      if (!hasApiKey()) {
-        window.location.href = 'settings.html';
-        return;
-      }
-
       renderHeader(true);
       renderLoadingState();
 
@@ -187,7 +182,7 @@
       const noSevBadge = noSev > 0 ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono border bg-slate-500/10 text-slate-400 border-slate-500/30">${noSev} unlabeled</span>` : '';
 
       document.getElementById('flights-section').innerHTML = `
-        <a href="bugs.html?platform=${encodeURIComponent(PLATFORM)}&feature=Flights"
+        <a href="bugs.html?platform=${encodeURIComponent(PLATFORM)}&feature=${encodeURIComponent('Flight Search')}"
            class="block bg-gradient-to-r from-cyan-500/5 to-blue-500/5 border border-cyan-500/20 rounded-lg p-6 hover:border-cyan-500/40 transition-colors">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
@@ -196,7 +191,7 @@
               </div>
               <div>
                 <h3 class="text-sm font-semibold text-slate-200">Flight Search Bugs</h3>
-                <p class="text-xs text-slate-500">Feature area: Flights</p>
+                <p class="text-xs text-slate-500">Label: Flight Search</p>
               </div>
             </div>
             <div class="text-right">
@@ -251,7 +246,14 @@
     function renderStatusBreakdown() {
       const k = mobileKPIs;
       const p = encodeURIComponent(PLATFORM);
-      const statusOrder = ['New Issue', 'Triage', 'Backlog', 'Ready for Development', 'Dev In Progress', 'Dev Complete', 'Ready for QA', 'QA Completed', 'Ready for UAT', 'On Hold', 'Released'];
+      const statusOrder = [
+        'New Issue', 'Triage', 'Backlog', 'Grooming', 'Ready for Design', 'Ready for Development',
+        'In Development', 'Code Review', 'PR Review', 'Development Complete',
+        'Ready for QA', 'QA In Progress', 'Ready for UAT', 'UAT In Progress',
+        'Ready for Production', 'Reopen',
+        'On Hold', 'Blocked', 'Cannot Reproduce',
+        'Released', 'Done', 'Duplicate', 'Canceled',
+      ];
 
       const statuses = statusOrder
         .map(s => ({ name: s, count: (k.byStatus[s] || []).length }))
@@ -328,22 +330,28 @@
         .map(([name, bugs]) => ({ name, count: bugs.length }))
         .sort((a, b) => b.count - a.count);
 
-      const featureColors = {
-        'Messaging': '#3b82f6', 'Trips': '#22c55e', 'Profile': '#a855f7', 'Flights': '#06b6d4',
-        'Points': '#f59e0b', 'Performance': '#ef4444', 'Integration': '#ec4899', 'Validation': '#14b8a6',
+      // Dynamic feature area colors
+      const FEATURE_COLOR_MAP = {
+        'Flight Search': '#06b6d4',
         'Uncategorized': '#64748b',
       };
+      const AUTO_COLORS = ['#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1', '#84cc16'];
+      let autoIdx = 0;
+      const featureColors = {};
+      areas.forEach(a => {
+        featureColors[a.name] = FEATURE_COLOR_MAP[a.name] || AUTO_COLORS[autoIdx++ % AUTO_COLORS.length];
+      });
 
       const cards = areas.map(a => {
         const color = featureColors[a.name] || '#64748b';
-        const isFlights = a.name === 'Flights';
-        const highlight = isFlights ? 'border-cyan-500/30 ring-1 ring-cyan-500/10' : 'border-slate-800';
+        const isFlightSearch = a.name === 'Flight Search';
+        const highlight = isFlightSearch ? 'border-cyan-500/30 ring-1 ring-cyan-500/10' : 'border-slate-800';
         return `
           <a href="bugs.html?platform=${p}&feature=${encodeURIComponent(a.name)}"
              class="bg-slate-900 border ${highlight} rounded-lg p-3 hover:border-slate-600 transition-colors block">
             <div class="flex items-center gap-2 mb-1">
               <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
-              <span class="text-xs ${isFlights ? 'text-cyan-400 font-medium' : 'text-slate-400'}">${a.name}</span>
+              <span class="text-xs ${isFlightSearch ? 'text-cyan-400 font-medium' : 'text-slate-400'}">${a.name}</span>
             </div>
             <div class="text-lg font-semibold font-mono text-slate-200">${a.count}</div>
           </a>

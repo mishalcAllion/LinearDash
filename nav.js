@@ -5,8 +5,6 @@ const NAV_ITEMS = [
   { id: 'bugs', label: 'All Bugs', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`, href: 'bugs.html' },
   { id: 'trends', label: 'Trends', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>`, href: 'trends.html' },
   { id: 'mobile', label: 'Mobile App', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>`, href: 'mobile.html' },
-  { id: 'separator', label: null, icon: null, href: null },
-  { id: 'settings', label: 'Settings', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>`, href: 'settings.html' },
 ];
 
 function initNav() {
@@ -14,7 +12,6 @@ function initNav() {
   if (!root) return;
 
   const currentPage = window.CURRENT_PAGE || 'dashboard';
-  const connected = hasApiKey();
   const lastRefresh = getLastRefreshTime();
   const openCount = window.KPIS?.totalOpen ?? '--';
 
@@ -54,8 +51,8 @@ function initNav() {
           <div class="text-slate-300 font-mono text-right">${lastRefresh ? Theme.relativeTime(new Date(lastRefresh).toISOString()) : 'Never'}</div>
         </div>
         <div class="flex items-center gap-1.5 text-xs mt-2">
-          <span class="w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}"></span>
-          <span class="${connected ? 'text-green-400' : 'text-red-400'}">${connected ? 'Connected' : 'No API key'}</span>
+          <span class="w-2 h-2 rounded-full bg-green-500"></span>
+          <span class="text-green-400">Connected (read-only)</span>
         </div>
       </div>
     </aside>

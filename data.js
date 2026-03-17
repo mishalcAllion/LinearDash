@@ -6,12 +6,14 @@ const CACHE_KEY_PREFIX = 'linear-bug-dash-cache-';
 const TREND_STORAGE = 'linear-bug-dash-trends';
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// ─── API Key Management ───────────────────────────────────────────────
+// ─── API Key (read-only, embedded) ────────────────────────────────────
 
-function getApiKey() { return localStorage.getItem(API_KEY_STORAGE); }
-function hasApiKey() { return !!getApiKey(); }
-function setApiKey(key) { localStorage.setItem(API_KEY_STORAGE, key); }
-function clearApiKey() { localStorage.removeItem(API_KEY_STORAGE); }
+const LINEAR_API_KEY = 'lin_api_PETEF4SEQQVHLCEsqrDqKsi7YMh7yVJM14wbVbql';
+
+function getApiKey() { return LINEAR_API_KEY; }
+function hasApiKey() { return true; }
+function setApiKey() { /* no-op: key is embedded */ }
+function clearApiKey() { /* no-op: key is embedded */ }
 
 // ─── Cache Layer ──────────────────────────────────────────────────────
 
@@ -159,17 +161,36 @@ const FETCH_BUGS_QUERY = `
 `;
 
 // ─── Label Parsing ────────────────────────────────────────────────────
+// Labels sourced from Linear workspace (maestroinc), grouped by parent:
+//   Severity:       S0-Critical, S1-Major, S2-Moderate, S3-Minor
+//   Team:           Mobile App, Command Center, Points
+//   Mobile Feature: Flight Search
+//   Mobile OS:      Android, iOS
+//   Type:           Bug, Feature, feature-request, HotFix, Improvement, New Issue
+//   Source:         UAT Feedback
 
-const SEVERITY_LABELS = ['S0-Critical', 'S1-Critical', 'S2-Moderate', 'S3-Minor'];
-const PLATFORM_LABELS = ['Mobile App', 'Command Center'];
-const FEATURE_AREA_LABELS = ['Messaging', 'Trips', 'Profile', 'Flights', 'Points', 'Performance', 'Integration', 'Validation'];
+const SEVERITY_LABELS = ['S0-Critical', 'S1-Major', 'S2-Moderate', 'S3-Minor'];
+const PLATFORM_LABELS = ['Mobile App', 'Command Center', 'Points'];
+const OS_LABELS = ['Android', 'iOS'];
+const TYPE_LABELS = ['Bug', 'Feature', 'feature-request', 'HotFix', 'Improvement', 'New Issue'];
+const SOURCE_LABELS = ['UAT Feedback'];
+
+// All "infrastructure" labels -- anything NOT in this list is treated as a feature area
+const KNOWN_NON_FEATURE_LABELS = [
+  ...SEVERITY_LABELS, ...PLATFORM_LABELS, ...OS_LABELS, ...TYPE_LABELS, ...SOURCE_LABELS,
+];
 
 function parseBugLabels(issue) {
   const labels = issue.labels.nodes.map(l => l.name);
+
+  // Feature area = any label that isn't a known infrastructure label
+  const featureLabels = labels.filter(l => !KNOWN_NON_FEATURE_LABELS.includes(l));
+
   return {
     severity: labels.find(l => SEVERITY_LABELS.includes(l)) || null,
     platform: labels.find(l => PLATFORM_LABELS.includes(l)) || 'Unknown',
-    featureArea: labels.find(l => FEATURE_AREA_LABELS.includes(l)) || 'Uncategorized',
+    featureArea: featureLabels.length > 0 ? featureLabels[0] : 'Uncategorized',
+    os: labels.find(l => OS_LABELS.includes(l)) || null,
     source: labels.includes('UAT Feedback') ? 'UAT' : null,
     allLabels: labels,
   };
@@ -296,7 +317,7 @@ function saveTrendSnapshot(kpis) {
       addedToday: kpis.addedToday,
       bySeverity: {
         'S0-Critical': (kpis.openBySeverity['S0-Critical'] || []).length,
-        'S1-Critical': (kpis.openBySeverity['S1-Critical'] || []).length,
+        'S1-Major': (kpis.openBySeverity['S1-Major'] || []).length,
         'S2-Moderate': (kpis.openBySeverity['S2-Moderate'] || []).length,
         'S3-Minor': (kpis.openBySeverity['S3-Minor'] || []).length,
       },
@@ -346,7 +367,7 @@ function computeFilteredKPIs(bugs, filters = {}) {
   if (filters.platform) filtered = filtered.filter(b => b.platform === filters.platform);
   if (filters.featureArea) filtered = filtered.filter(b => b.featureArea === filters.featureArea);
   const kpis = computeKPIs(filtered);
-  kpis.flightBugs = filtered.filter(b => b.featureArea === 'Flights');
+  kpis.flightBugs = filtered.filter(b => b.featureArea === 'Flight Search');
   kpis.flightBugsOpen = kpis.flightBugs.filter(b => !isClosedStatus(b));
   return kpis;
 }
