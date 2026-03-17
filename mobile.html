@@ -230,16 +230,15 @@
         `;
       }
 
-      const addedColor = k.addedToday === 0 ? 'text-green-400' : k.addedToday > 5 ? 'text-red-400' : 'text-amber-400';
-      const addedBorder = k.addedToday === 0 ? 'border-green-500/20' : k.addedToday > 5 ? 'border-red-500/20' : 'border-amber-500/20';
+      const addedColor = k.addedRecent === 0 ? 'text-green-400' : k.addedRecent > 5 ? 'text-red-400' : 'text-amber-400';
+      const addedBorder = k.addedRecent === 0 ? 'border-green-500/20' : k.addedRecent > 5 ? 'border-red-500/20' : 'border-amber-500/20';
 
-      const today = new Date().toISOString().slice(0, 10);
-      const addedHref = `bugs.html?platform=${p}&status=${encodeURIComponent('New Issue')}&from=${today}&to=${today}`;
+      const addedHref = `bugs.html?platform=${p}&status=${encodeURIComponent('New Issue')}`;
 
       document.getElementById('top-kpis').innerHTML = `
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           ${kpiCard('Open Bugs', k.totalOpen, 'text-blue-400', 'border-blue-500/20', `bugs.html?platform=${p}`)}
-          ${kpiCard('Added Today', k.addedToday, addedColor, addedBorder, addedHref)}
+          ${kpiCard('Added (24h)', k.addedRecent, addedColor, addedBorder, addedHref)}
           ${kpiCard('Avg Age (days)', k.avgAgeDays, 'text-slate-200', 'border-slate-700', `bugs.html?platform=${p}&sort=age`)}
           ${kpiCard('Closed This Week', k.closedThisWeek, 'text-green-400', 'border-green-500/20', `bugs.html?platform=${p}&closed=week`)}
         </div>

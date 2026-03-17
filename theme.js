@@ -140,6 +140,11 @@ const Theme = {
     return d.toDateString() === now.toDateString();
   },
 
+  isLast24Hours(dateStr) {
+    if (!dateStr) return false;
+    return (new Date() - new Date(dateStr)) < 24 * 60 * 60 * 1000;
+  },
+
   isThisWeek(dateStr) {
     if (!dateStr) return false;
     const d = new Date(dateStr);

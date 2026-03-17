@@ -272,24 +272,26 @@ function groupBy(arr, key) {
 }
 
 function computeKPIs(bugs) {
-  const openBugs = bugs.filter(b => !isClosedStatus(b));
-  const closedBugs = bugs.filter(b => isClosedStatus(b));
+  // Only count parent tickets (exclude sub-issues to avoid double-counting)
+  const parents = bugs.filter(b => !b.parentIdentifier);
+  const openBugs = parents.filter(b => !isClosedStatus(b));
+  const closedBugs = parents.filter(b => isClosedStatus(b));
 
   const totalAgeOpen = openBugs.reduce((sum, b) => sum + b.ageDays, 0);
 
   return {
-    total: bugs.length,
+    total: parents.length,
     totalOpen: openBugs.length,
     totalClosed: closedBugs.length,
-    addedToday: bugs.filter(b => b.status === 'New Issue' && Theme.isToday(b.createdAt)).length,
+    addedRecent: parents.filter(b => b.status === 'New Issue' && Theme.isLast24Hours(b.createdAt)).length,
     closedThisWeek: closedBugs.filter(b => Theme.isThisWeek(b.completedAt || b.canceledAt)).length,
     avgAgeDays: openBugs.length > 0 ? Math.round(totalAgeOpen / openBugs.length) : 0,
 
-    byStatus: groupBy(bugs, 'status'),
-    bySeverity: groupBy(bugs, 'severity'),
-    byPlatform: groupBy(bugs, 'platform'),
-    byFeatureArea: groupBy(bugs, 'featureArea'),
-    byAssignee: groupBy(bugs, 'assigneeName'),
+    byStatus: groupBy(parents, 'status'),
+    bySeverity: groupBy(parents, 'severity'),
+    byPlatform: groupBy(parents, 'platform'),
+    byFeatureArea: groupBy(parents, 'featureArea'),
+    byAssignee: groupBy(parents, 'assigneeName'),
 
     openByStatus: groupBy(openBugs, 'status'),
     openBySeverity: groupBy(openBugs, 'severity'),
@@ -312,7 +314,7 @@ function saveTrendSnapshot(kpis) {
       date: today,
       totalOpen: kpis.totalOpen,
       totalClosed: kpis.totalClosed,
-      addedToday: kpis.addedToday,
+      addedToday: kpis.addedRecent,
       bySeverity: {
         'S0-Critical': (kpis.openBySeverity['S0-Critical'] || []).length,
         'S1-Major': (kpis.openBySeverity['S1-Major'] || []).length,
@@ -365,7 +367,144 @@ function computeFilteredKPIs(bugs, filters = {}) {
   if (filters.platform) filtered = filtered.filter(b => b.platform === filters.platform);
   if (filters.featureArea) filtered = filtered.filter(b => b.featureArea === filters.featureArea);
   const kpis = computeKPIs(filtered);
-  kpis.flightBugs = filtered.filter(b => b.featureArea === 'Flight Search');
+  kpis.flightBugs = filtered.filter(b => !b.parentIdentifier && b.featureArea === 'Flight Search');
   kpis.flightBugsOpen = kpis.flightBugs.filter(b => !isClosedStatus(b));
   return kpis;
+}
+
+// ─── Sprint / Cycle Data ──────────────────────────────────────────────
+
+const FETCH_ACTIVE_CYCLE_QUERY = `
+  query FetchActiveCycle {
+    cycles(filter: { isActive: { eq: true } }, first: 5, orderBy: createdAt) {
+      nodes {
+        id
+        name
+        number
+        startsAt
+        endsAt
+      }
+    }
+  }
+`;
+
+const FETCH_CYCLE_ISSUES_QUERY = `
+  query FetchCycleIssues($cycleId: String, $after: String) {
+    issues(
+      filter: { cycle: { id: { eq: $cycleId } } }
+      first: 100
+      after: $after
+      orderBy: updatedAt
+    ) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        id
+        identifier
+        title
+        priority
+        priorityLabel
+        createdAt
+        updatedAt
+        completedAt
+        canceledAt
+        url
+        estimate
+        state { name type color }
+        assignee { id name displayName avatarUrl }
+        labels { nodes { id name color } }
+        parent { id identifier }
+      }
+    }
+  }
+`;
+
+async function fetchActiveCycle() {
+  const cached = getCache('active-cycle');
+  if (cached) return cached;
+
+  const data = await linearQuery(FETCH_ACTIVE_CYCLE_QUERY);
+  const cycles = data.cycles.nodes;
+  if (cycles.length === 0) return null;
+
+  // Pick the first active cycle
+  const cycle = cycles[0];
+  setCache('active-cycle', cycle);
+  return cycle;
+}
+
+function normalizeSprintIssue(issue) {
+  const labels = issue.labels.nodes.map(l => l.name);
+  return {
+    id: issue.id,
+    identifier: issue.identifier,
+    title: issue.title,
+    status: issue.state.name,
+    statusType: issue.state.type,
+    statusColor: issue.state.color,
+    assigneeName: issue.assignee?.displayName || issue.assignee?.name || 'Unassigned',
+    assigneeAvatar: issue.assignee?.avatarUrl || null,
+    priority: issue.priority,
+    priorityLabel: issue.priorityLabel,
+    estimate: issue.estimate || 0,
+    createdAt: issue.createdAt,
+    updatedAt: issue.updatedAt,
+    completedAt: issue.completedAt,
+    canceledAt: issue.canceledAt,
+    url: issue.url,
+    parentIdentifier: issue.parent?.identifier || null,
+    allLabels: labels,
+    isBug: labels.includes('Bug'),
+  };
+}
+
+async function fetchCycleIssues(cycleId) {
+  const cacheKey = 'cycle-' + cycleId;
+  const cached = getCache(cacheKey);
+  if (cached) return cached;
+
+  let allIssues = [];
+  let hasNextPage = true;
+  let cursor = null;
+
+  while (hasNextPage) {
+    const data = await linearQuery(FETCH_CYCLE_ISSUES_QUERY, { cycleId, after: cursor });
+    const issues = data.issues;
+    allIssues.push(...issues.nodes.map(normalizeSprintIssue));
+    hasNextPage = issues.pageInfo.hasNextPage;
+    cursor = issues.pageInfo.endCursor;
+  }
+
+  setCache(cacheKey, allIssues);
+  return allIssues;
+}
+
+// Kanban column grouping
+const KANBAN_COLUMNS = [
+  { id: 'backlog', label: 'Backlog', statuses: ['New Issue', 'Backlog', 'Triage', 'Grooming'] },
+  { id: 'ready', label: 'Ready for Dev', statuses: ['Ready for Design', 'Ready for Development'] },
+  { id: 'in-dev', label: 'In Development', statuses: ['In Development', 'Code Review', 'PR Review'] },
+  { id: 'dev-done', label: 'Dev Complete', statuses: ['Development Complete'] },
+  { id: 'qa', label: 'QA', statuses: ['Ready for QA', 'QA In Progress'] },
+  { id: 'uat', label: 'UAT', statuses: ['Ready for UAT', 'UAT In Progress', 'Ready for Production'] },
+  { id: 'done', label: 'Done', statuses: ['Released', 'Done'] },
+];
+
+const BLOCKED_STATUSES = ['On Hold', 'Blocked', 'Cannot Reproduce', 'Reopen'];
+
+function computeSprintKPIs(issues) {
+  const parents = issues.filter(i => !i.parentIdentifier);
+  const total = parents.length;
+  const done = parents.filter(i => ['Released', 'Done'].includes(i.status) || i.statusType === 'completed').length;
+  const inProgress = parents.filter(i => i.statusType === 'started').length;
+  const blocked = parents.filter(i => BLOCKED_STATUSES.includes(i.status)).length;
+  const totalEstimate = parents.reduce((s, i) => s + i.estimate, 0);
+  const doneEstimate = parents.filter(i => ['Released', 'Done'].includes(i.status) || i.statusType === 'completed').reduce((s, i) => s + i.estimate, 0);
+
+  return {
+    total, done, inProgress, blocked,
+    completionPct: total > 0 ? Math.round((done / total) * 100) : 0,
+    totalEstimate, doneEstimate,
+    pointsPct: totalEstimate > 0 ? Math.round((doneEstimate / totalEstimate) * 100) : 0,
+    byAssignee: groupBy(parents, 'assigneeName'),
+  };
 }
