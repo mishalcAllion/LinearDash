@@ -55,6 +55,11 @@
     let selectedRange = 30;
 
     document.addEventListener('DOMContentLoaded', async () => {
+      if (!hasApiKey()) {
+        window.location.href = 'settings.html';
+        return;
+      }
+
       // Refresh data to ensure today's snapshot exists
       try {
         await refreshData();

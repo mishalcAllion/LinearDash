@@ -60,6 +60,11 @@
     let isLoading = false;
 
     document.addEventListener('DOMContentLoaded', async () => {
+      if (!hasApiKey()) {
+        window.location.href = 'settings.html';
+        return;
+      }
+
       renderHeader(true);
       renderLoadingState();
 

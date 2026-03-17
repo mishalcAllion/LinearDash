@@ -6,14 +6,12 @@ const CACHE_KEY_PREFIX = 'linear-bug-dash-cache-';
 const TREND_STORAGE = 'linear-bug-dash-trends';
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// ─── API Key (read-only, embedded) ────────────────────────────────────
+// ─── API Key Management ───────────────────────────────────────────────
 
-const LINEAR_API_KEY = 'lin_api_PETEF4SEQQVHLCEsqrDqKsi7YMh7yVJM14wbVbql';
-
-function getApiKey() { return LINEAR_API_KEY; }
-function hasApiKey() { return true; }
-function setApiKey() { /* no-op: key is embedded */ }
-function clearApiKey() { /* no-op: key is embedded */ }
+function getApiKey() { return localStorage.getItem(API_KEY_STORAGE); }
+function hasApiKey() { return !!getApiKey(); }
+function setApiKey(key) { localStorage.setItem(API_KEY_STORAGE, key); }
+function clearApiKey() { localStorage.removeItem(API_KEY_STORAGE); }
 
 // ─── Cache Layer ──────────────────────────────────────────────────────
 
