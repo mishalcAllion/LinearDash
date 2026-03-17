@@ -184,4 +184,54 @@ const Charts = {
 
     el.innerHTML = `<div class="flex items-end justify-center gap-1 overflow-x-auto">${bars}</div>`;
   },
+
+  // ─── Stacked Vertical Bar Chart ─────────────────────────────────
+  // Each bar is a stack of colored segments (e.g., severity breakdown per day)
+
+  stackedVbar(containerId, items, options = {}) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    const height = options.height || 160;
+    const segmentColors = options.colors || ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+    const segmentLabels = options.labels || [];
+
+    if (items.length === 0) {
+      el.innerHTML = `<div class="text-slate-600 text-sm py-4 text-center" style="height:${height}px">No data</div>`;
+      return;
+    }
+
+    // Each item: { label, segments: [v0, v1, v2, v3] }
+    const maxTotal = Math.max(...items.map(i => i.segments.reduce((s, v) => s + v, 0)), 1);
+    const barWidth = Math.max(16, Math.min(40, Math.floor((el.offsetWidth || 600) / items.length) - 8));
+
+    const bars = items.map(item => {
+      const total = item.segments.reduce((s, v) => s + v, 0);
+      const segs = item.segments.map((v, i) => {
+        if (v === 0) return '';
+        const h = Math.max(1, (v / maxTotal) * (height - 24));
+        return `<div class="w-full" style="height:${h}px;background:${segmentColors[i]}" title="${segmentLabels[i] || ''}: ${v}"></div>`;
+      }).reverse().join('');
+
+      return `
+        <div class="flex flex-col items-center" style="width:${barWidth + 4}px">
+          <div class="text-[9px] font-mono text-slate-500 mb-0.5">${total}</div>
+          <div class="flex flex-col w-full rounded-t-sm overflow-hidden" style="height:${height - 24}px;justify-content:flex-end">
+            ${segs}
+          </div>
+          <div class="text-[9px] font-mono text-slate-600 mt-0.5 truncate w-full text-center">${item.label}</div>
+        </div>
+      `;
+    }).join('');
+
+    // Legend
+    const legend = segmentLabels.map((label, i) => `
+      <span class="flex items-center gap-1 text-[10px] text-slate-400"><span class="w-2 h-2 rounded-full" style="background:${segmentColors[i]}"></span>${label}</span>
+    `).join('');
+
+    el.innerHTML = `
+      <div class="flex items-end justify-center gap-1 overflow-x-auto">${bars}</div>
+      <div class="flex items-center justify-center gap-4 mt-3">${legend}</div>
+    `;
+  },
 };

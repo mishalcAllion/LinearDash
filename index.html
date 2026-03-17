@@ -38,6 +38,9 @@
       <!-- Top KPI cards -->
       <div id="top-kpis" class="mb-8"></div>
 
+      <!-- Inflow / Outflow -->
+      <div id="flow-section" class="mb-8"></div>
+
       <!-- Status breakdown -->
       <div id="status-section" class="mb-8"></div>
 
@@ -76,6 +79,7 @@
         updateNavStats();
         renderHeader(false);
         renderTopKPIs();
+        renderInflowOutflow();
         renderStatusBreakdown();
         renderSeverityBreakdown();
         renderPlatformBreakdown();
@@ -98,6 +102,7 @@
         updateNavStats();
         renderHeader(false);
         renderTopKPIs();
+        renderInflowOutflow();
         renderStatusBreakdown();
         renderSeverityBreakdown();
         renderPlatformBreakdown();
@@ -162,7 +167,7 @@
           <button onclick="handleRefresh()" class="mt-3 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 hover:bg-red-500/20 transition-colors">Retry</button>
         </div>
       `;
-      ['status-section', 'severity-section', 'platform-section', 'feature-section', 'stale-section', 'assignee-section'].forEach(id => {
+      ['flow-section', 'status-section', 'severity-section', 'platform-section', 'feature-section', 'stale-section', 'assignee-section'].forEach(id => {
         document.getElementById(id).innerHTML = '';
       });
     }
@@ -209,6 +214,44 @@
           ${kpiCard('Closed This Week', k.closedThisWeek, 'text-green-400', 'border-green-500/20', 'bugs.html?closed=week')}
         </div>
       `;
+    }
+
+    // ─── Inflow / Outflow ──────────────────────────────────────────
+
+    function renderInflowOutflow() {
+      const k = window.KPIS;
+      const flow = k.inflowOutflow;
+      if (!flow) { document.getElementById('flow-section').innerHTML = ''; return; }
+
+      const netColor = flow.netFlow > 0 ? 'text-red-400' : flow.netFlow < 0 ? 'text-green-400' : 'text-slate-500';
+      const netSign = flow.netFlow > 0 ? '+' : '';
+      const netIcon = flow.netFlow > 0 ? '&#9650;' : flow.netFlow < 0 ? '&#9660;' : '--';
+
+      // Dual bar chart data: opened (blue) vs closed (green)
+      const chartItems = flow.daily.map(d => ({
+        label: d.label,
+        value: d.opened,
+        value2: d.closed,
+        color: '#3b82f6',
+        color2: '#22c55e',
+      }));
+
+      document.getElementById('flow-section').innerHTML = `
+        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-slate-200">Bug Inflow vs Outflow</h3>
+            <div class="flex items-center gap-4 text-xs">
+              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="text-slate-400">Opened: <span class="font-mono text-slate-300">${flow.inflow7d}</span></span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-slate-400">Closed: <span class="font-mono text-slate-300">${flow.outflow7d}</span></span></span>
+              <span class="text-slate-400">Net: <span class="font-mono ${netColor}">${netIcon} ${netSign}${flow.netFlow}</span></span>
+            </div>
+          </div>
+          <div id="flow-chart"></div>
+          <div class="text-[10px] text-slate-600 mt-2">Last 7 days</div>
+        </div>
+      `;
+
+      Charts.vbar('flow-chart', chartItems, { height: 100 });
     }
 
     // ─── Status Breakdown ───────────────────────────────────────────

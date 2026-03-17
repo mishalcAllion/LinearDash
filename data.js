@@ -306,7 +306,33 @@ function computeKPIs(bugs) {
     staleBugs: openBugs
       .filter(b => Theme.daysSince(b.updatedAt) >= 7)
       .sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt)),
+
+    // Inflow vs outflow: last 7 days, per-day buckets
+    inflowOutflow: computeInflowOutflow(parents),
   };
+}
+
+function computeInflowOutflow(parents) {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  const daily = days.map(day => {
+    const opened = parents.filter(b => b.createdAt.slice(0, 10) === day).length;
+    const closed = parents.filter(b => {
+      const closedDate = b.completedAt || b.canceledAt;
+      return closedDate && closedDate.slice(0, 10) === day;
+    }).length;
+    return { date: day, label: day.slice(5), opened, closed };
+  });
+
+  const inflow7d = daily.reduce((s, d) => s + d.opened, 0);
+  const outflow7d = daily.reduce((s, d) => s + d.closed, 0);
+
+  return { daily, inflow7d, outflow7d, netFlow: inflow7d - outflow7d };
 }
 
 // ─── Trend Snapshots ──────────────────────────────────────────────────

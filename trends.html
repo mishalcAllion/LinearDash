@@ -150,10 +150,19 @@
       Charts.vbar('open-trend-chart', items, { height: 160 });
     }
 
-    function renderSeverityTrend(trends) {
-      const latest = trends[trends.length - 1];
+    let severityView = 'chart';
 
-      // Stacked severity over time
+    function renderSeverityTrend(trends) {
+      // Build stacked chart data
+      const chartItems = trends.map(t => {
+        const s = t.bySeverity || {};
+        return {
+          label: t.date.slice(5),
+          segments: [s['S0-Critical'] || 0, s['S1-Major'] || 0, s['S2-Moderate'] || 0, s['S3-Minor'] || 0],
+        };
+      });
+
+      // Build table rows
       const tableRows = trends.map(t => {
         const s = t.bySeverity || {};
         const total = (s['S0-Critical'] || 0) + (s['S1-Major'] || 0) + (s['S2-Moderate'] || 0) + (s['S3-Minor'] || 0);
@@ -169,26 +178,60 @@
         `;
       }).join('');
 
+      const tableHtml = `
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-slate-700">
+                <th class="text-left py-2 pr-4 text-[10px] text-slate-600 uppercase tracking-wider">Date</th>
+                <th class="text-right py-2 pr-4 text-[10px] text-red-400/60 uppercase tracking-wider">S0</th>
+                <th class="text-right py-2 pr-4 text-[10px] text-orange-400/60 uppercase tracking-wider">S1</th>
+                <th class="text-right py-2 pr-4 text-[10px] text-amber-400/60 uppercase tracking-wider">S2</th>
+                <th class="text-right py-2 pr-4 text-[10px] text-green-400/60 uppercase tracking-wider">S3</th>
+                <th class="text-right py-2 text-[10px] text-slate-500 uppercase tracking-wider">Total</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      `;
+
       document.getElementById('severity-trend').innerHTML = `
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
-          <h3 class="text-sm font-semibold text-slate-200 mb-4">Severity Breakdown Over Time</h3>
-          <div class="overflow-x-auto">
-            <table class="w-full">
-              <thead>
-                <tr class="border-b border-slate-700">
-                  <th class="text-left py-2 pr-4 text-[10px] text-slate-600 uppercase tracking-wider">Date</th>
-                  <th class="text-right py-2 pr-4 text-[10px] text-red-400/60 uppercase tracking-wider">S0</th>
-                  <th class="text-right py-2 pr-4 text-[10px] text-orange-400/60 uppercase tracking-wider">S1</th>
-                  <th class="text-right py-2 pr-4 text-[10px] text-amber-400/60 uppercase tracking-wider">S2</th>
-                  <th class="text-right py-2 pr-4 text-[10px] text-green-400/60 uppercase tracking-wider">S3</th>
-                  <th class="text-right py-2 text-[10px] text-slate-500 uppercase tracking-wider">Total</th>
-                </tr>
-              </thead>
-              <tbody>${tableRows}</tbody>
-            </table>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-slate-200">Severity Breakdown Over Time</h3>
+            <div class="flex items-center bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+              <button onclick="switchSeverityView('chart')"
+                      class="px-3 py-1 text-[11px] font-medium transition-colors ${severityView === 'chart' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200'}">
+                Chart
+              </button>
+              <button onclick="switchSeverityView('table')"
+                      class="px-3 py-1 text-[11px] font-medium transition-colors ${severityView === 'table' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:text-slate-200'}">
+                Table
+              </button>
+            </div>
+          </div>
+          <div id="severity-chart-container" class="${severityView === 'chart' ? '' : 'hidden'}">
+            <div id="severity-stacked-chart"></div>
+          </div>
+          <div id="severity-table-container" class="${severityView === 'table' ? '' : 'hidden'}">
+            ${tableHtml}
           </div>
         </div>
       `;
+
+      if (severityView === 'chart') {
+        Charts.stackedVbar('severity-stacked-chart', chartItems, {
+          height: 160,
+          colors: ['#ef4444', '#f97316', '#eab308', '#22c55e'],
+          labels: ['S0-Critical', 'S1-Major', 'S2-Moderate', 'S3-Minor'],
+        });
+      }
+    }
+
+    function switchSeverityView(view) {
+      severityView = view;
+      renderAll();
     }
 
     function renderDataInfo(allTrends) {
