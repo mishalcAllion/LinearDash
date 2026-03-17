@@ -6,6 +6,7 @@ const Filters = {
   fromURL() {
     const params = new URLSearchParams(window.location.search);
     return {
+      search: params.get('q') || null,
       status: params.get('status') || null,
       severity: params.get('severity') || null,
       platform: params.get('platform') || null,
@@ -29,6 +30,13 @@ const Filters = {
   // Apply filters to bug array (AND logic)
   apply(bugs, filters) {
     return bugs.filter(bug => {
+      // text search on title and identifier
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const matchTitle = bug.title.toLowerCase().includes(q);
+        const matchId = bug.identifier.toLowerCase().includes(q);
+        if (!matchTitle && !matchId) return false;
+      }
       // openOnly: reject closed bugs
       if (filters.openOnly) {
         const isClosed = CLOSED_STATUS_TYPES.includes(bug.statusType) || bug.status === 'Released';
@@ -64,6 +72,7 @@ const Filters = {
   // Build URL with filter params
   toURL(baseHref, filters) {
     const params = new URLSearchParams();
+    if (filters.search) params.set('q', filters.search);
     if (filters.status) params.set('status', filters.status);
     if (filters.severity) params.set('severity', filters.severity);
     if (filters.platform) params.set('platform', filters.platform);
@@ -108,6 +117,7 @@ const Filters = {
     }
 
     const labels = {
+      search: 'Search',
       status: 'Status',
       severity: 'Severity',
       platform: 'Platform',
@@ -149,7 +159,7 @@ const Filters = {
     });
 
     document.getElementById('clear-all-filters')?.addEventListener('click', () => {
-      onChange({ status: null, severity: null, platform: null, featureArea: null, assignee: null, dateFrom: null, dateTo: null, closed: null, openOnly: null });
+      onChange({ search: null, status: null, severity: null, platform: null, featureArea: null, assignee: null, dateFrom: null, dateTo: null, closed: null, openOnly: null });
     });
   },
 

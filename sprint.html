@@ -344,7 +344,11 @@
       const isBlocked = BLOCKED_STATUSES.includes(issue.status);
       const blockedBorder = isBlocked ? 'border-l-2 border-l-red-500' : '';
       const priorityColors = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-amber-400', 4: 'text-slate-500' };
+      const priorityDotColors = { 1: 'bg-red-400', 2: 'bg-orange-400', 3: 'bg-amber-400', 4: 'bg-slate-500' };
       const priorityColor = priorityColors[issue.priority] || 'text-slate-600';
+      const priorityBadge = issue.priority && issue.priority <= 4
+        ? `<span class="flex items-center gap-1 text-[10px] ${priorityColor}"><span class="w-1.5 h-1.5 rounded-full ${priorityDotColors[issue.priority]}"></span>P${issue.priority}</span>`
+        : '';
 
       const labelBadges = issue.allLabels
         .filter(l => !['Bug', 'Feature', 'feature-request', 'HotFix', 'Improvement', 'New Issue'].includes(l))
@@ -356,7 +360,10 @@
         <a href="${issue.url}" target="_blank" rel="noopener"
            class="block bg-slate-900 border border-slate-800 ${blockedBorder} rounded-lg p-3 hover:border-slate-600 transition-colors group">
           <div class="flex items-start justify-between gap-2 mb-1.5">
-            <span class="font-mono text-[11px] text-blue-400">${issue.identifier}</span>
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-[11px] text-blue-400">${issue.identifier}</span>
+              ${priorityBadge}
+            </div>
             <div class="flex items-center gap-1.5">
               ${issue.isBug ? '<span class="text-[10px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">Bug</span>' : ''}
               ${issue.estimate ? `<span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">${issue.estimate}pt</span>` : ''}
@@ -431,6 +438,11 @@
       const sc = Theme.statusColor(issue.status);
       const isBlocked = BLOCKED_STATUSES.includes(issue.status);
       const blockedBorder = isBlocked ? 'border-l-2 border-l-red-500' : '';
+      const priorityColors = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-amber-400', 4: 'text-slate-500' };
+      const priorityDotColors = { 1: 'bg-red-400', 2: 'bg-orange-400', 3: 'bg-amber-400', 4: 'bg-slate-500' };
+      const priorityBadge = issue.priority && issue.priority <= 4
+        ? `<span class="flex items-center gap-1 text-[10px] ${priorityColors[issue.priority]}"><span class="w-1.5 h-1.5 rounded-full ${priorityDotColors[issue.priority]}"></span>P${issue.priority}</span>`
+        : '';
 
       const labelBadges = issue.allLabels
         .filter(l => !['Bug', 'Feature', 'feature-request', 'HotFix', 'Improvement', 'New Issue'].includes(l))
@@ -442,7 +454,10 @@
         <a href="${issue.url}" target="_blank" rel="noopener"
            class="block bg-slate-900 border border-slate-800 ${blockedBorder} rounded-lg p-3 hover:border-slate-600 transition-colors group">
           <div class="flex items-start justify-between gap-2 mb-1.5">
-            <span class="font-mono text-[11px] text-blue-400">${issue.identifier}</span>
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-[11px] text-blue-400">${issue.identifier}</span>
+              ${priorityBadge}
+            </div>
             <div class="flex items-center gap-1.5">
               ${issue.isBug ? '<span class="text-[10px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">Bug</span>' : ''}
               ${issue.estimate ? `<span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">${issue.estimate}pt</span>` : ''}

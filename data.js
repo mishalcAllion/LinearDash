@@ -301,6 +301,11 @@ function computeKPIs(bugs) {
     openByPlatform: groupBy(openBugs, 'platform'),
     openByFeatureArea: groupBy(openBugs, 'featureArea'),
     openByAssignee: groupBy(openBugs, 'assigneeName'),
+
+    // Stale bugs: open bugs not updated in 7+ days
+    staleBugs: openBugs
+      .filter(b => Theme.daysSince(b.updatedAt) >= 7)
+      .sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt)),
   };
 }
 
@@ -354,6 +359,18 @@ async function refreshData(forceRefresh = false) {
 
   const bugs = await fetchAllBugs();
   const kpis = computeKPIs(bugs);
+
+  // Compute deltas from previous day's trend snapshot
+  const trends = getTrendData();
+  const today = new Date().toISOString().slice(0, 10);
+  const prevSnapshot = [...trends].reverse().find(t => t.date !== today);
+  if (prevSnapshot) {
+    kpis.openDelta = kpis.totalOpen - prevSnapshot.totalOpen;
+    kpis.prevDate = prevSnapshot.date;
+  } else {
+    kpis.openDelta = null;
+    kpis.prevDate = null;
+  }
 
   window.BUGS = bugs;
   window.KPIS = kpis;

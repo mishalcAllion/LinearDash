@@ -50,6 +50,9 @@
       <!-- Feature area breakdown -->
       <div id="feature-section" class="mb-8"></div>
 
+      <!-- Stale bugs -->
+      <div id="stale-section" class="mb-8"></div>
+
       <!-- Assignee summary -->
       <div id="assignee-section" class="mb-8"></div>
 
@@ -77,6 +80,7 @@
         renderSeverityBreakdown();
         renderPlatformBreakdown();
         renderFeatureAreaBreakdown();
+        renderStaleBugs();
         renderAssigneeSummary();
       } catch (e) {
         renderError(e.message);
@@ -98,6 +102,7 @@
         renderSeverityBreakdown();
         renderPlatformBreakdown();
         renderFeatureAreaBreakdown();
+        renderStaleBugs();
         renderAssigneeSummary();
       } catch (e) {
         renderError(e.message);
@@ -157,7 +162,7 @@
           <button onclick="handleRefresh()" class="mt-3 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 hover:bg-red-500/20 transition-colors">Retry</button>
         </div>
       `;
-      ['status-section', 'severity-section', 'platform-section', 'feature-section', 'assignee-section'].forEach(id => {
+      ['status-section', 'severity-section', 'platform-section', 'feature-section', 'stale-section', 'assignee-section'].forEach(id => {
         document.getElementById(id).innerHTML = '';
       });
     }
@@ -167,12 +172,22 @@
     function renderTopKPIs() {
       const k = window.KPIS;
 
-      function kpiCard(label, value, color, borderColor, href) {
+      function kpiCard(label, value, color, borderColor, href, delta) {
         const clickAttr = href ? `onclick="window.location.href='${href}'"` : '';
         const cursor = href ? 'cursor-pointer hover:border-slate-600' : '';
+        let deltaHtml = '';
+        if (delta !== undefined && delta !== null) {
+          const sign = delta > 0 ? '+' : '';
+          const dColor = delta > 0 ? 'text-red-400' : delta < 0 ? 'text-green-400' : 'text-slate-500';
+          const arrow = delta > 0 ? '&#9650;' : delta < 0 ? '&#9660;' : '';
+          deltaHtml = `<span class="text-xs font-mono ${dColor} ml-2">${arrow} ${sign}${delta}</span>`;
+        }
         return `
           <div ${clickAttr} class="bg-slate-900 border ${borderColor} rounded-lg p-5 transition-colors ${cursor}">
-            <div class="text-3xl font-semibold font-mono ${color}">${value}</div>
+            <div class="flex items-baseline">
+              <span class="text-3xl font-semibold font-mono ${color}">${value}</span>
+              ${deltaHtml}
+            </div>
             <div class="text-xs text-slate-500 mt-1.5 uppercase tracking-wider">${label}</div>
           </div>
         `;
@@ -185,9 +200,12 @@
 
       document.getElementById('top-kpis').innerHTML = `
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          ${kpiCard('Open Bugs', k.totalOpen, 'text-blue-400', 'border-blue-500/20', 'bugs.html')}
+          ${kpiCard('Open Bugs', k.totalOpen, 'text-blue-400', 'border-blue-500/20', 'bugs.html', k.openDelta)}
           ${kpiCard('Added (24h)', k.addedRecent, addedColor, addedBorder, addedHref)}
-          ${kpiCard('Avg Age (days)', k.avgAgeDays, 'text-slate-200', 'border-slate-700', 'bugs.html?sort=age')}
+          ${kpiCard('Avg Age (days)', k.avgAgeDays,
+            k.avgAgeDays > 21 ? 'text-red-400' : k.avgAgeDays > 7 ? 'text-amber-400' : 'text-green-400',
+            k.avgAgeDays > 21 ? 'border-red-500/20' : k.avgAgeDays > 7 ? 'border-amber-500/20' : 'border-green-500/20',
+            'bugs.html?sort=age')}
           ${kpiCard('Closed This Week', k.closedThisWeek, 'text-green-400', 'border-green-500/20', 'bugs.html?closed=week')}
         </div>
       `;
@@ -353,6 +371,56 @@
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
           <h3 class="text-sm font-semibold text-slate-200 mb-4">Feature Area (Open Bugs)</h3>
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">${cards}</div>
+        </div>
+      `;
+    }
+
+    // ─── Stale Bugs ───────────────────────────────────────────────
+
+    function renderStaleBugs() {
+      const k = window.KPIS;
+      const stale = k.staleBugs || [];
+
+      if (stale.length === 0) {
+        document.getElementById('stale-section').innerHTML = '';
+        return;
+      }
+
+      const rows = stale.slice(0, 10).map(bug => {
+        const daysSinceUpdate = Theme.daysSince(bug.updatedAt);
+        const ageColor = daysSinceUpdate > 21 ? 'text-red-400' : daysSinceUpdate > 14 ? 'text-orange-400' : 'text-amber-400';
+        return `
+          <a href="${bug.url}" target="_blank" rel="noopener"
+             class="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/50 transition-colors group">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <span class="font-mono text-[11px] text-blue-400 flex-shrink-0">${bug.identifier}</span>
+              ${bug.severity ? Theme.severityBadge(bug.severity) : ''}
+              <span class="text-xs text-slate-300 truncate">${Theme.escapeHtml(bug.title)}</span>
+            </div>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <span class="text-[10px] text-slate-500">${bug.assigneeName}</span>
+              <span class="text-[10px] font-mono ${ageColor}">${daysSinceUpdate}d stale</span>
+            </div>
+          </a>
+        `;
+      }).join('');
+
+      const moreLink = stale.length > 10
+        ? `<div class="text-center mt-2"><a href="bugs.html?open=1&sort=age" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">${stale.length - 10} more stale bugs</a></div>`
+        : '';
+
+      document.getElementById('stale-section').innerHTML = `
+        <div class="bg-slate-900/50 border border-amber-500/20 rounded-lg p-6">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <h3 class="text-sm font-semibold text-slate-200">Stale Bugs</h3>
+              <span class="text-[10px] font-mono bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded">${stale.length}</span>
+            </div>
+            <span class="text-[10px] text-slate-600">No update in 7+ days</span>
+          </div>
+          <div class="divide-y divide-slate-800/50">${rows}</div>
+          ${moreLink}
         </div>
       `;
     }
