@@ -392,7 +392,7 @@ const FETCH_ACTIVE_CYCLE_QUERY = `
 `;
 
 const FETCH_CYCLE_ISSUES_QUERY = `
-  query FetchCycleIssues($cycleId: String, $after: String) {
+  query FetchCycleIssues($cycleId: ID, $after: String) {
     issues(
       filter: { cycle: { id: { eq: $cycleId } } }
       first: 100
