@@ -13,12 +13,28 @@ const Filters = {
       assignee: params.get('assignee') || null,
       dateFrom: params.get('from') || null,
       dateTo: params.get('to') || null,
+      closed: params.get('closed') || null,
     };
+  },
+
+  // Read sort preference from URL
+  sortFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    const sort = params.get('sort');
+    if (sort === 'age') return { key: 'ageDays', dir: 'desc' };
+    return null;
   },
 
   // Apply filters to bug array (AND logic)
   apply(bugs, filters) {
     return bugs.filter(bug => {
+      // closed=week: show only closed bugs from the last 7 days
+      if (filters.closed === 'week') {
+        const isClosed = CLOSED_STATUS_TYPES.includes(bug.statusType) || bug.status === 'Released';
+        if (!isClosed) return false;
+        const closedDate = bug.completedAt || bug.canceledAt;
+        if (!closedDate || !Theme.isThisWeek(closedDate)) return false;
+      }
       if (filters.status && bug.status !== filters.status) return false;
       if (filters.severity && bug.severity !== filters.severity) return false;
       if (filters.platform && bug.platform !== filters.platform) return false;
@@ -49,6 +65,7 @@ const Filters = {
     if (filters.assignee) params.set('assignee', filters.assignee);
     if (filters.dateFrom) params.set('from', filters.dateFrom);
     if (filters.dateTo) params.set('to', filters.dateTo);
+    if (filters.closed) params.set('closed', filters.closed);
     const qs = params.toString();
     return qs ? `${baseHref}?${qs}` : baseHref;
   },
@@ -81,6 +98,7 @@ const Filters = {
       assignee: 'Assignee',
       dateFrom: 'From',
       dateTo: 'To',
+      closed: 'Closed',
     };
 
     const pills = Object.entries(filters)
@@ -111,7 +129,7 @@ const Filters = {
     });
 
     document.getElementById('clear-all-filters')?.addEventListener('click', () => {
-      onChange({ status: null, severity: null, platform: null, featureArea: null, assignee: null, dateFrom: null, dateTo: null });
+      onChange({ status: null, severity: null, platform: null, featureArea: null, assignee: null, dateFrom: null, dateTo: null, closed: null });
     });
   },
 

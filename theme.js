@@ -35,6 +35,7 @@ const Theme = {
   // Status colors
   statusColor(status) {
     const map = {
+      'New Issue':             { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/30', dot: 'bg-indigo-500', hex: '#6366f1' },
       'Backlog':              { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-500', hex: '#64748b' },
       'Triage':               { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-500', hex: '#a855f7' },
       'Ready for Design':     { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/30', dot: 'bg-pink-500', hex: '#ec4899' },

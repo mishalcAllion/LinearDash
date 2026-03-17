@@ -71,6 +71,9 @@
         await refreshData();
         updateNavStats();
         currentFilters = Filters.fromURL();
+        // Apply sort from URL if present (e.g. ?sort=age)
+        const urlSort = Filters.sortFromURL();
+        if (urlSort) currentSort = urlSort;
         renderAll();
       } catch (e) {
         document.getElementById('bug-table').innerHTML = `

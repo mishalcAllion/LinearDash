@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard -- Bug Dashboard</title>
+  <title>Mobile App -- Bug Dashboard</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,7 +12,7 @@
 
   <script src="theme.js"></script>
   <script src="data.js"></script>
-  <script>window.CURRENT_PAGE = 'dashboard';</script>
+  <script>window.CURRENT_PAGE = 'mobile';</script>
   <script src="nav.js"></script>
   <script src="charts.js"></script>
 
@@ -35,20 +35,20 @@
       <!-- Page header -->
       <div id="page-header" class="mb-8"></div>
 
+      <!-- Flight Search spotlight -->
+      <div id="flights-section" class="mb-8"></div>
+
       <!-- Top KPI cards -->
       <div id="top-kpis" class="mb-8"></div>
 
       <!-- Status breakdown -->
       <div id="status-section" class="mb-8"></div>
 
-      <!-- Two-column: Severity + Platform -->
+      <!-- Two-column: Severity + Feature Area -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
         <div id="severity-section"></div>
-        <div id="platform-section"></div>
+        <div id="feature-section"></div>
       </div>
-
-      <!-- Feature area breakdown -->
-      <div id="feature-section" class="mb-8"></div>
 
       <!-- Assignee summary -->
       <div id="assignee-section" class="mb-8"></div>
@@ -57,7 +57,9 @@
   </main>
 
   <script>
+    const PLATFORM = 'Mobile App';
     let isLoading = false;
+    let mobileKPIs = null;
 
     document.addEventListener('DOMContentLoaded', async () => {
       if (!hasApiKey()) {
@@ -71,11 +73,12 @@
       try {
         await refreshData();
         updateNavStats();
+        mobileKPIs = computeFilteredKPIs(window.BUGS, { platform: PLATFORM });
         renderHeader(false);
+        renderFlightsSpotlight();
         renderTopKPIs();
         renderStatusBreakdown();
         renderSeverityBreakdown();
-        renderPlatformBreakdown();
         renderFeatureAreaBreakdown();
         renderAssigneeSummary();
       } catch (e) {
@@ -92,11 +95,12 @@
       try {
         await refreshData(true);
         updateNavStats();
+        mobileKPIs = computeFilteredKPIs(window.BUGS, { platform: PLATFORM });
         renderHeader(false);
+        renderFlightsSpotlight();
         renderTopKPIs();
         renderStatusBreakdown();
         renderSeverityBreakdown();
-        renderPlatformBreakdown();
         renderFeatureAreaBreakdown();
         renderAssigneeSummary();
       } catch (e) {
@@ -110,17 +114,18 @@
 
     function renderHeader(loading) {
       const lastRefresh = getLastRefreshTime();
+      const totalMobile = mobileKPIs ? mobileKPIs.total : '';
       document.getElementById('page-header').innerHTML = `
         <div class="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h2 class="text-xl font-semibold text-slate-100">Bug Dashboard</h2>
+            <h2 class="text-xl font-semibold text-slate-100">Mobile App Bugs</h2>
             <p class="text-sm text-slate-500 mt-1">
               ${lastRefresh ? `Last refreshed ${Theme.relativeTime(new Date(lastRefresh).toISOString())}` : 'Loading...'}
-              ${window.BUGS ? ` -- ${window.BUGS.length} total bugs` : ''}
+              ${totalMobile ? ` -- ${totalMobile} mobile bugs` : ''}
             </p>
             <p class="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
-              Showing issues labeled <span class="font-mono text-slate-500">"Bug"</span> in Linear
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+              Filtered to platform <span class="font-mono text-slate-500">"Mobile App"</span> with label <span class="font-mono text-slate-500">"Bug"</span>
             </p>
           </div>
           <button onclick="handleRefresh()" ${loading ? 'disabled' : ''}
@@ -132,24 +137,19 @@
       `;
     }
 
-    // ─── Loading skeleton ───────────────────────────────────────────
+    // ─── Loading / Error ────────────────────────────────────────────
 
     function renderLoadingState() {
-      document.getElementById('top-kpis').innerHTML = `
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          ${Array(4).fill('<div class="skeleton h-24"></div>').join('')}
-        </div>
-      `;
+      document.getElementById('flights-section').innerHTML = `<div class="skeleton h-32"></div>`;
+      document.getElementById('top-kpis').innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">${Array(4).fill('<div class="skeleton h-24"></div>').join('')}</div>`;
       document.getElementById('status-section').innerHTML = `<div class="skeleton h-48"></div>`;
       document.getElementById('severity-section').innerHTML = `<div class="skeleton h-64"></div>`;
-      document.getElementById('platform-section').innerHTML = `<div class="skeleton h-64"></div>`;
-      document.getElementById('feature-section').innerHTML = `<div class="skeleton h-40"></div>`;
+      document.getElementById('feature-section').innerHTML = `<div class="skeleton h-64"></div>`;
       document.getElementById('assignee-section').innerHTML = `<div class="skeleton h-48"></div>`;
     }
 
-    // ─── Error ──────────────────────────────────────────────────────
-
     function renderError(msg) {
+      document.getElementById('flights-section').innerHTML = '';
       document.getElementById('top-kpis').innerHTML = `
         <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
           <p class="text-red-400 text-sm font-medium mb-2">Failed to load bug data</p>
@@ -157,15 +157,67 @@
           <button onclick="handleRefresh()" class="mt-3 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 hover:bg-red-500/20 transition-colors">Retry</button>
         </div>
       `;
-      ['status-section', 'severity-section', 'platform-section', 'feature-section', 'assignee-section'].forEach(id => {
+      ['status-section', 'severity-section', 'feature-section', 'assignee-section'].forEach(id => {
         document.getElementById(id).innerHTML = '';
       });
+    }
+
+    // ─── Flight Search Spotlight ────────────────────────────────────
+
+    function renderFlightsSpotlight() {
+      const k = mobileKPIs;
+      const flightOpen = k.flightBugsOpen || [];
+      const flightAll = k.flightBugs || [];
+
+      // Severity breakdown for flights
+      const flightSev = {};
+      flightOpen.forEach(b => {
+        const sev = b.severity || 'No Severity';
+        flightSev[sev] = (flightSev[sev] || 0) + 1;
+      });
+
+      const sevBadges = SEVERITY_LABELS
+        .filter(s => flightSev[s])
+        .map(s => {
+          const sc = Theme.severityColor(s);
+          return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono border ${sc.bg} ${sc.text} ${sc.border}"><span class="w-1.5 h-1.5 rounded-full ${sc.dot}"></span>${flightSev[s]}</span>`;
+        }).join(' ');
+
+      const noSev = flightSev['No Severity'] || 0;
+      const noSevBadge = noSev > 0 ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono border bg-slate-500/10 text-slate-400 border-slate-500/30">${noSev} unlabeled</span>` : '';
+
+      document.getElementById('flights-section').innerHTML = `
+        <a href="bugs.html?platform=${encodeURIComponent(PLATFORM)}&feature=Flights"
+           class="block bg-gradient-to-r from-cyan-500/5 to-blue-500/5 border border-cyan-500/20 rounded-lg p-6 hover:border-cyan-500/40 transition-colors">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
+                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-slate-200">Flight Search Bugs</h3>
+                <p class="text-xs text-slate-500">Feature area: Flights</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-semibold font-mono text-cyan-400">${flightOpen.length}</div>
+              <div class="text-xs text-slate-500">open</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            ${sevBadges}
+            ${noSevBadge}
+            ${flightAll.length > flightOpen.length ? `<span class="text-xs text-slate-600">${flightAll.length - flightOpen.length} closed</span>` : ''}
+          </div>
+        </a>
+      `;
     }
 
     // ─── Top KPI Cards ──────────────────────────────────────────────
 
     function renderTopKPIs() {
-      const k = window.KPIS;
+      const k = mobileKPIs;
+      const p = encodeURIComponent(PLATFORM);
 
       function kpiCard(label, value, color, borderColor, href) {
         const clickAttr = href ? `onclick="window.location.href='${href}'"` : '';
@@ -181,16 +233,15 @@
       const addedColor = k.addedToday === 0 ? 'text-green-400' : k.addedToday > 5 ? 'text-red-400' : 'text-amber-400';
       const addedBorder = k.addedToday === 0 ? 'border-green-500/20' : k.addedToday > 5 ? 'border-red-500/20' : 'border-amber-500/20';
 
-      // Build today's date for the "Added Today" link
       const today = new Date().toISOString().slice(0, 10);
-      const addedTodayHref = `bugs.html?status=${encodeURIComponent('New Issue')}&from=${today}&to=${today}`;
+      const addedHref = `bugs.html?platform=${p}&status=${encodeURIComponent('New Issue')}&from=${today}&to=${today}`;
 
       document.getElementById('top-kpis').innerHTML = `
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          ${kpiCard('Open Bugs', k.totalOpen, 'text-blue-400', 'border-blue-500/20', 'bugs.html')}
-          ${kpiCard('Added Today', k.addedToday, addedColor, addedBorder, addedTodayHref)}
-          ${kpiCard('Avg Age (days)', k.avgAgeDays, 'text-slate-200', 'border-slate-700', 'bugs.html?sort=age')}
-          ${kpiCard('Closed This Week', k.closedThisWeek, 'text-green-400', 'border-green-500/20', 'bugs.html?closed=week')}
+          ${kpiCard('Open Bugs', k.totalOpen, 'text-blue-400', 'border-blue-500/20', `bugs.html?platform=${p}`)}
+          ${kpiCard('Added Today', k.addedToday, addedColor, addedBorder, addedHref)}
+          ${kpiCard('Avg Age (days)', k.avgAgeDays, 'text-slate-200', 'border-slate-700', `bugs.html?platform=${p}&sort=age`)}
+          ${kpiCard('Closed This Week', k.closedThisWeek, 'text-green-400', 'border-green-500/20', `bugs.html?platform=${p}&closed=week`)}
         </div>
       `;
     }
@@ -198,7 +249,8 @@
     // ─── Status Breakdown ───────────────────────────────────────────
 
     function renderStatusBreakdown() {
-      const k = window.KPIS;
+      const k = mobileKPIs;
+      const p = encodeURIComponent(PLATFORM);
       const statusOrder = ['New Issue', 'Triage', 'Backlog', 'Ready for Development', 'Dev In Progress', 'Dev Complete', 'Ready for QA', 'QA Completed', 'Ready for UAT', 'On Hold', 'Released'];
 
       const statuses = statusOrder
@@ -215,7 +267,7 @@
         const sc = Theme.statusColor(s.name);
         const pct = k.total > 0 ? ((s.count / k.total) * 100).toFixed(0) : 0;
         return `
-          <a href="bugs.html?status=${encodeURIComponent(s.name)}"
+          <a href="bugs.html?platform=${p}&status=${encodeURIComponent(s.name)}"
              class="bg-slate-900 border ${sc.border} rounded-lg p-3 hover:border-slate-600 transition-colors block">
             <div class="flex items-center gap-2 mb-1">
               <span class="w-2 h-2 rounded-full ${sc.dot}"></span>
@@ -232,26 +284,26 @@
       document.getElementById('status-section').innerHTML = `
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
           <h3 class="text-sm font-semibold text-slate-200 mb-4">Status Breakdown</h3>
-          <div id="status-stacked-bar" class="mb-4"></div>
+          <div id="mobile-status-bar" class="mb-4"></div>
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">${cards}</div>
         </div>
       `;
 
-      Charts.stackedBar('status-stacked-bar', segments, { height: 4 });
+      Charts.stackedBar('mobile-status-bar', segments, { height: 4 });
     }
 
     // ─── Severity Breakdown ─────────────────────────────────────────
 
     function renderSeverityBreakdown() {
-      const k = window.KPIS;
+      const k = mobileKPIs;
+      const p = encodeURIComponent(PLATFORM);
       const severities = SEVERITY_LABELS.map(s => ({
         label: s,
         value: (k.openBySeverity[s] || []).length,
         color: Theme.severityColor(s).hex,
-        onClick: `window.location.href='bugs.html?severity=${encodeURIComponent(s)}'`,
+        onClick: `window.location.href='bugs.html?platform=${p}&severity=${encodeURIComponent(s)}'`,
       }));
 
-      // Add "No Severity" if present
       const noSev = (k.openBySeverity['null'] || k.openBySeverity['Unknown'] || []).length;
       if (noSev > 0) {
         severities.push({ label: 'No Severity', value: noSev, color: '#64748b' });
@@ -260,60 +312,18 @@
       document.getElementById('severity-section').innerHTML = `
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
           <h3 class="text-sm font-semibold text-slate-200 mb-4">Severity (Open Bugs)</h3>
-          <div id="severity-donut"></div>
+          <div id="mobile-severity-donut"></div>
         </div>
       `;
 
-      Charts.donut('severity-donut', severities, { size: 180, centerLabel: 'Open' });
-    }
-
-    // ─── Platform Breakdown ─────────────────────────────────────────
-
-    function renderPlatformBreakdown() {
-      const k = window.KPIS;
-
-      const platforms = PLATFORM_LABELS.map(p => {
-        const pc = Theme.platformColor(p);
-        const count = (k.openByPlatform[p] || []).length;
-        return `
-          <a href="bugs.html?platform=${encodeURIComponent(p)}"
-             class="bg-slate-900 border ${pc.border} rounded-lg p-4 hover:border-slate-600 transition-colors block flex-1">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="w-2.5 h-2.5 rounded-full ${pc.dot}"></span>
-              <span class="text-xs text-slate-400">${p}</span>
-            </div>
-            <div class="text-2xl font-semibold font-mono ${pc.text}">${count}</div>
-            <div class="text-xs text-slate-600 mt-1">open bugs</div>
-          </a>
-        `;
-      });
-
-      const unknown = (k.openByPlatform['Unknown'] || []).length;
-      if (unknown > 0) {
-        platforms.push(`
-          <a href="bugs.html" class="bg-slate-900 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors block flex-1">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
-              <span class="text-xs text-slate-400">Unlabeled</span>
-            </div>
-            <div class="text-2xl font-semibold font-mono text-slate-400">${unknown}</div>
-            <div class="text-xs text-slate-600 mt-1">open bugs</div>
-          </a>
-        `);
-      }
-
-      document.getElementById('platform-section').innerHTML = `
-        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
-          <h3 class="text-sm font-semibold text-slate-200 mb-4">Platform (Open Bugs)</h3>
-          <div class="flex gap-3">${platforms.join('')}</div>
-        </div>
-      `;
+      Charts.donut('mobile-severity-donut', severities, { size: 180, centerLabel: 'Open' });
     }
 
     // ─── Feature Area Breakdown ─────────────────────────────────────
 
     function renderFeatureAreaBreakdown() {
-      const k = window.KPIS;
+      const k = mobileKPIs;
+      const p = encodeURIComponent(PLATFORM);
       const areas = Object.entries(k.openByFeatureArea)
         .map(([name, bugs]) => ({ name, count: bugs.length }))
         .sort((a, b) => b.count - a.count);
@@ -326,12 +336,14 @@
 
       const cards = areas.map(a => {
         const color = featureColors[a.name] || '#64748b';
+        const isFlights = a.name === 'Flights';
+        const highlight = isFlights ? 'border-cyan-500/30 ring-1 ring-cyan-500/10' : 'border-slate-800';
         return `
-          <a href="bugs.html?feature=${encodeURIComponent(a.name)}"
-             class="bg-slate-900 border border-slate-800 rounded-lg p-3 hover:border-slate-600 transition-colors block">
+          <a href="bugs.html?platform=${p}&feature=${encodeURIComponent(a.name)}"
+             class="bg-slate-900 border ${highlight} rounded-lg p-3 hover:border-slate-600 transition-colors block">
             <div class="flex items-center gap-2 mb-1">
               <span class="w-2 h-2 rounded-full" style="background:${color}"></span>
-              <span class="text-xs text-slate-400">${a.name}</span>
+              <span class="text-xs ${isFlights ? 'text-cyan-400 font-medium' : 'text-slate-400'}">${a.name}</span>
             </div>
             <div class="text-lg font-semibold font-mono text-slate-200">${a.count}</div>
           </a>
@@ -349,7 +361,8 @@
     // ─── Assignee Summary ───────────────────────────────────────────
 
     function renderAssigneeSummary() {
-      const k = window.KPIS;
+      const k = mobileKPIs;
+      const p = encodeURIComponent(PLATFORM);
       const assignees = Object.entries(k.openByAssignee)
         .map(([name, bugs]) => ({ name, count: bugs.length }))
         .sort((a, b) => b.count - a.count);
@@ -358,17 +371,17 @@
         label: a.name,
         value: a.count,
         color: a.name === 'Unassigned' ? '#64748b' : '#3b82f6',
-        href: `bugs.html?assignee=${encodeURIComponent(a.name)}`,
+        href: `bugs.html?platform=${p}&assignee=${encodeURIComponent(a.name)}`,
       }));
 
       document.getElementById('assignee-section').innerHTML = `
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
           <h3 class="text-sm font-semibold text-slate-200 mb-4">Assignee (Open Bugs)</h3>
-          <div id="assignee-chart"></div>
+          <div id="mobile-assignee-chart"></div>
         </div>
       `;
 
-      Charts.hbar('assignee-chart', items);
+      Charts.hbar('mobile-assignee-chart', items);
     }
   </script>
 </body>

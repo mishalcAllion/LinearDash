@@ -262,7 +262,7 @@ function computeKPIs(bugs) {
     total: bugs.length,
     totalOpen: openBugs.length,
     totalClosed: closedBugs.length,
-    addedToday: bugs.filter(b => Theme.isToday(b.createdAt)).length,
+    addedToday: bugs.filter(b => b.status === 'New Issue' && Theme.isToday(b.createdAt)).length,
     closedThisWeek: closedBugs.filter(b => Theme.isThisWeek(b.completedAt || b.canceledAt)).length,
     avgAgeDays: openBugs.length > 0 ? Math.round(totalAgeOpen / openBugs.length) : 0,
 
@@ -337,4 +337,16 @@ async function refreshData(forceRefresh = false) {
   saveTrendSnapshot(kpis);
 
   return { bugs, kpis };
+}
+
+// ─── Filtered KPIs (for platform-specific dashboards) ─────────────────
+
+function computeFilteredKPIs(bugs, filters = {}) {
+  let filtered = [...bugs];
+  if (filters.platform) filtered = filtered.filter(b => b.platform === filters.platform);
+  if (filters.featureArea) filtered = filtered.filter(b => b.featureArea === filters.featureArea);
+  const kpis = computeKPIs(filtered);
+  kpis.flightBugs = filtered.filter(b => b.featureArea === 'Flights');
+  kpis.flightBugsOpen = kpis.flightBugs.filter(b => !isClosedStatus(b));
+  return kpis;
 }
